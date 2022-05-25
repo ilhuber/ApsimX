@@ -1099,6 +1099,9 @@
             newNode = this.AddCompNode(destParent, "Operations", XmlUtilities.NameAttr(compNode));
 
             XmlNode childNode;
+
+            // Format from String_to_jday in classic.
+            var dateFormats = new string[] {"d/M/yyyy", "d-MMM-yyyy", "d_MMM_yyyy"};
             
             List<XmlNode> nodes = new List<XmlNode>();
             XmlUtilities.FindAllRecursively(compNode, "operation", ref nodes);
@@ -1110,7 +1113,11 @@
                 string childText = string.Empty;
                 childNode = XmlUtilities.Find(oper, "date");
                 DateTime when;
-                if (childNode != null && DateTime.TryParse(childNode.InnerText, out when))
+                if (DateTime.TryParseExact(childNode?.InnerText,
+                                           dateFormats,
+                                           CultureInfo.InvariantCulture,
+                                           DateTimeStyles.None,
+                                           out when))
                     childText = when.ToString("yyyy-MM-dd");
                 else if (childNode != null && childNode.InnerText != string.Empty)
                 {
