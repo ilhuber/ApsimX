@@ -67,6 +67,10 @@
                                       "SweetSorghum","Taro2","Triticale","vine","Weed","WF_Millet",
                                       "Wheat","Wheat2","Wheat2X"};
 
+        // Formats from String_to_jday in classic
+        private string[] dateFormatsFixed = {"d/M/yyyy", "d-MMM-yyyy", "d_MMM_yyyy"};
+        private string[] dateFormatsAnnual = {"d-MMM", "d_MMM"};
+
         /// <summary>
         /// Used as flags during importation of a paddock
         /// </summary>
@@ -1144,9 +1148,6 @@
             newNode = this.AddCompNode(destParent, "Operations", XmlUtilities.NameAttr(compNode));
 
             XmlNode childNode;
-
-            // Format from String_to_jday in classic.
-            var dateFormats = new string[] {"d/M/yyyy", "d-MMM-yyyy", "d_MMM_yyyy"};
             
             List<XmlNode> nodes = new List<XmlNode>();
             XmlUtilities.FindAllRecursively(compNode, "operation", ref nodes);
@@ -1159,12 +1160,19 @@
                 childNode = XmlUtilities.Find(oper, "date");
                 DateTime when;
                 if (DateTime.TryParseExact(childNode?.InnerText,
-                                           dateFormats,
+                                           dateFormatsFixed,
                                            CultureInfo.InvariantCulture,
                                            DateTimeStyles.None,
                                            out when))
                     childText = when.ToString("yyyy-MM-dd");
-                else if (childNode != null && childNode.InnerText != string.Empty)
+                else if (DateTime.TryParseExact(childNode?.InnerText,
+                                                dateFormatsAnnual,
+                                                CultureInfo.InvariantCulture,
+                                                DateTimeStyles.None,
+                                                out _))
+                    // matches dd-MMM or similar, so repeats annually
+                    childText = childNode.InnerText;
+                else if (!String.IsNullOrEmpty(childNode?.InnerText))
                 {
                     childText = DateUtilities.DMYtoISO(childNode.InnerText);
                     if (childText == "0001-01-01")
