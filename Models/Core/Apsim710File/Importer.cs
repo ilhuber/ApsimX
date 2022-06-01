@@ -67,9 +67,6 @@
                                       "SweetSorghum","Taro2","Triticale","vine","Weed","WF_Millet",
                                       "Wheat","Wheat2","Wheat2X"};
 
-        // Formats from String_to_jday in classic
-        private string[] dateFormatsFixed = {"d/M/yyyy", "d-MMM-yyyy", "d_MMM_yyyy"};
-        private string[] dateFormatsAnnual = {"d-MMM", "d_MMM"};
 
         /// <summary>
         /// Used as flags during importation of a paddock
@@ -1156,37 +1153,12 @@
                 XmlNode operationNode = newNode.AppendChild(destParent.OwnerDocument.CreateElement("Operation"));
                 XmlNode dateNode = operationNode.AppendChild(destParent.OwnerDocument.CreateElement("Date"));
 
-                string childText = string.Empty;
                 childNode = XmlUtilities.Find(oper, "date");
-                DateTime when;
-                if (DateTime.TryParseExact(childNode?.InnerText,
-                                           dateFormatsFixed,
-                                           CultureInfo.InvariantCulture,
-                                           DateTimeStyles.None,
-                                           out when))
-                    childText = when.ToString("yyyy-MM-dd");
-                else if (DateTime.TryParseExact(childNode?.InnerText,
-                                                dateFormatsAnnual,
-                                                CultureInfo.InvariantCulture,
-                                                DateTimeStyles.None,
-                                                out _))
-                    // matches dd-MMM or similar, so repeats annually
-                    childText = childNode.InnerText;
-                else if (!String.IsNullOrEmpty(childNode?.InnerText))
-                {
-                    childText = DateUtilities.DMYtoISO(childNode.InnerText);
-                    if (childText == "0001-01-01")
-                    {
-                        childText = DateUtilities.GetDate(childNode.InnerText, this.startDate).ToString("yyyy-MM-dd");
-                    }
-                }
-                else
-                    childText = "0001-01-01";
-                dateNode.InnerText = childText;
+                dateNode.InnerText = OperationDatetoNGDate(childNode?.InnerText);
                 
                 XmlNode actionNode = operationNode.AppendChild(destParent.OwnerDocument.CreateElement("Action"));
 
-                childText = " ";
+                string childText = " ";
                 childNode = XmlUtilities.Find(oper, "action");
                 if (childNode != null)
                 {
@@ -1235,6 +1207,45 @@
             } // next operation
 
             return newNode;
+        }
+
+        /// <Summary>
+        /// Method for parsing a date used by a classic Operations manager to
+        /// a format recognized by NG Operations.
+        /// </Summary>
+        /// <param name="date">The (possibly null or empty) date string</param>
+        /// <returns>A date string recognized by NG's Operations</returns>
+        private string OperationDatetoNGDate(string date)
+        {
+            // Different formats accepted by classic's OperationsSchedule
+            // first four options save us from needing to call DMYtoISO
+            string[] dateFormatsFixed = {"d/M/yyyy", "d-M-yyyy", "d-MMM-yyyy", "d_MMM_yyyy"};
+            string[] dateFormatsAnnual = {"d-MMM", "d_MMM"};
+
+            if (String.IsNullOrEmpty(date))
+                return "0001-01-01";
+
+            if (DateTime.TryParseExact(date,
+                                       dateFormatsFixed,
+                                       CultureInfo.InvariantCulture,
+                                       DateTimeStyles.None,
+                                       out DateTime when))
+                return when.ToString("yyyy-MM-dd");
+
+            if (DateTime.TryParseExact(date,
+                                       dateFormatsAnnual,
+                                       CultureInfo.InvariantCulture,
+                                       DateTimeStyles.None,
+                                       out _))
+                // Matches a dd-MMM or dd_MMM date
+                return date;
+
+            // No matches so far, try our other converters.
+            var result = DateUtilities.DMYtoISO(date);
+            if (result == "0001-01-01")
+                result = DateUtilities.GetDate(date, this.startDate).ToString("yyyy-MM-dd");
+
+            return result;
         }
 
         /// <summary>
