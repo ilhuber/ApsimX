@@ -163,7 +163,7 @@
         }
 
         /// <summary>
-        /// Interrogate the .apsim file XML and attempt to construct a 
+        /// Interrogate the .apsim file XML and attempt to construct a
         /// useful APSIMX Simulation object(s). Uses a temporary file
         /// location.
         /// </summary>
@@ -175,7 +175,7 @@
         }
 
         /// <summary>
-        /// Interrogate the .apsim file XML and attempt to construct a 
+        /// Interrogate the .apsim file XML and attempt to construct a
         /// useful APSIMX Simulation object(s). Uses a temporary file
         /// location.
         /// </summary>
@@ -198,7 +198,7 @@
             XmlNode xdocNode = xdoc.CreateElement("Simulations");
             xdoc.AppendChild(xdocNode);
             newNode = xdocNode.AppendChild(xdoc.CreateElement("Name"));
-            XmlUtilities.SetAttribute(xdoc.DocumentElement, "Version", XmlConverters.LastVersion.ToString()); 
+            XmlUtilities.SetAttribute(xdoc.DocumentElement, "Version", XmlConverters.LastVersion.ToString());
             newNode.InnerText = "Simulations";
 
             XmlNode rootNode = doc.DocumentElement;     // get first folder
@@ -602,7 +602,7 @@
         }
 
         /// <summary>
-        /// Import a graph object 
+        /// Import a graph object
         /// </summary>
         /// <param name="compNode">The node being imported from the apsim file xml</param>
         /// <param name="destParent">Destination parent node that the new child is added to</param>
@@ -784,7 +784,7 @@
                         param.ListValues = XmlUtilities.Attribute(init, "listvalues");
                         param.Description = XmlUtilities.Attribute(init, "description");
                         param.TypeName = typeName;
-                        // Convert any boolean values 
+                        // Convert any boolean values
                         if (String.Compare(param.TypeName, "yesno") == 0)
                         {
                             if (param.Value.Contains("o"))
@@ -909,7 +909,7 @@
 
             code.Append(this.WriteManagerParams(scriptParams));
 
-            // Convert the <script> section 
+            // Convert the <script> section
             XmlUtilities.FindAllRecursivelyByType(compNode, "script", ref nodes);
             foreach (XmlNode script in nodes)
             {
@@ -997,12 +997,12 @@
 
             XmlNode codeNode = newNode.AppendChild(newNode.OwnerDocument.CreateElement("Code"));
             codeNode.AppendChild(newNode.OwnerDocument.CreateCDataSection(code.ToString()));
-            
+
             // some Manager components have Memo children. For ApsimX the import
             // will just put them as the next sibling of the Manager rather
             // than as a child of the Manager.
             destParent = this.ImportManagerMemos(compNode, destParent);
-            
+
             return newNode;
         }
 
@@ -1145,7 +1145,7 @@
             newNode = this.AddCompNode(destParent, "Operations", XmlUtilities.NameAttr(compNode));
 
             XmlNode childNode;
-            
+
             List<XmlNode> nodes = new List<XmlNode>();
             XmlUtilities.FindAllRecursively(compNode, "operation", ref nodes);
             foreach (XmlNode oper in nodes)
@@ -1154,15 +1154,15 @@
                 XmlNode dateNode = operationNode.AppendChild(destParent.OwnerDocument.CreateElement("Date"));
 
                 childNode = XmlUtilities.Find(oper, "date");
-                dateNode.InnerText = OperationDatetoNGDate(childNode?.InnerText);
-                
+                dateNode.InnerText = operationDateToNGDate(childNode?.InnerText);
+
                 XmlNode actionNode = operationNode.AppendChild(destParent.OwnerDocument.CreateElement("Action"));
 
                 string childText = " ";
                 childNode = XmlUtilities.Find(oper, "action");
                 if (childNode != null)
                 {
-                    childText = childNode.InnerText;    
+                    childText = childNode.InnerText;
 
                     // parse the operation and determine if this can be converted to an apsimx function call
                     // ** This code makes a BIG assumption that the fertiliser component has that name. Also the irrigation component!
@@ -1215,11 +1215,12 @@
         /// </Summary>
         /// <param name="date">The (possibly null or empty) date string</param>
         /// <returns>A date string recognized by NG's Operations</returns>
-        private string OperationDatetoNGDate(string date)
+        private string operationDateToNGDate(string date)
         {
             // Different formats accepted by classic's OperationsSchedule
             // first four options save us from needing to call DMYtoISO
-            string[] dateFormatsFixed = {"d/M/yyyy", "d-M-yyyy", "d-MMM-yyyy", "d_MMM_yyyy"};
+            string[] dateFormatsFixed = {"d/M/yyyy", "d-M-yyyy", "d/M-yyyy",
+                                         "d-M/yyyy", "d-MMM-yyyy", "d_MMM_yyyy"};
             string[] dateFormatsAnnual = {"d-MMM", "d_MMM"};
 
             if (String.IsNullOrEmpty(date))
@@ -1241,7 +1242,7 @@
                 return date;
 
             // No matches so far, try our other converters.
-            var result = DateUtilities.DMYtoISO(date);
+            var result = DateUtilities.DoyYearToISO(date);
             if (result == "0001-01-01")
                 result = DateUtilities.GetDate(date, this.startDate).ToString("yyyy-MM-dd");
 
@@ -1268,7 +1269,7 @@
                     i++;
 
                 // find =
-                while ((i < line.Length) && (line[i] != '='))   
+                while ((i < line.Length) && (line[i] != '='))
                     i++;
                 i++;
                 while ((i < line.Length) && (line[i] == ' '))
@@ -1419,7 +1420,7 @@
                         values[i] = defValue;
                 }
             }
-                
+
             return values;
         }
 

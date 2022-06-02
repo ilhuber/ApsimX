@@ -309,6 +309,39 @@
                 return "0001-01-01";    // default??
         }
 
+
+        /// <summary>
+        /// Convdert a doy year or year doy string into a yyyy-MM-dd string.
+        /// Was a format accepted by Classic's Operations module.
+        /// </summary>
+        /// <param name="doyYear">doy yyyy | yyyy doy</param>
+        /// <returns>yyyy-MM-dd</returns>
+        public static string DoyYearToISO(string doyYear)
+        {
+            var twoInts = new Regex(@"^(\d+) (\d+)$");
+            var m = twoInts.Match(doyYear);
+            if (m.Success)
+            {
+                // Try doy yyyy first
+                var doy = Convert.ToInt32(m.Groups[1].Value, CultureInfo.InvariantCulture);
+                var year = Convert.ToInt32(m.Groups[2].Value, CultureInfo.InvariantCulture);
+                if (doy > 366)
+                {
+                    // Might be a yyyy doy string
+                    var tmp = doy;
+                    doy = year;
+                    year = tmp;
+                }
+                if (doy <= 366)
+                {
+                    var dt = new DateTime(year, 1, 1);
+                    return dt.AddDays(doy - 1).ToString("yyyy-MM-dd");
+                }
+            }
+            // Default value
+            return "0001-01-01";
+        }
+
         /// <summary>
         /// Convert a dd/mm/yyyy to DateTime
         /// </summary>
