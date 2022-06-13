@@ -11,6 +11,7 @@
     using System.IO;
     using System.Reflection;
     using System.Text;
+    using System.Text.RegularExpressions;
     using System.Xml;
 
     /// <summary>
@@ -1154,7 +1155,7 @@
                 XmlNode dateNode = operationNode.AppendChild(destParent.OwnerDocument.CreateElement("Date"));
 
                 childNode = XmlUtilities.Find(oper, "date");
-                dateNode.InnerText = operationDateToNGDate(childNode?.InnerText);
+                dateNode.InnerText = OperationDateToNGDate(childNode?.InnerText);
 
                 XmlNode actionNode = operationNode.AppendChild(destParent.OwnerDocument.CreateElement("Action"));
 
@@ -1215,7 +1216,7 @@
         /// </Summary>
         /// <param name="date">The (possibly null or empty) date string</param>
         /// <returns>A date string recognized by NG's Operations</returns>
-        private string operationDateToNGDate(string date)
+        private string OperationDateToNGDate(string date)
         {
             // Different formats accepted by classic's OperationsSchedule
             // first four options save us from needing to call DMYtoISO
@@ -1242,11 +1243,43 @@
                 return date;
 
             // No matches so far, try our other converters.
-            var result = DateUtilities.DoyYearToISO(date);
+            var result = DoyYearToISO(date);
             if (result == "0001-01-01")
                 result = DateUtilities.GetDate(date, this.startDate).ToString("yyyy-MM-dd");
 
             return result;
+        }
+
+        /// <summary>
+        /// Convdert a doy year or year doy string into a yyyy-MM-dd string.
+        /// This was a format accepted by Classic's Operations module.
+        /// </summary>
+        /// <param name="doyYear">doy yyyy | yyyy doy</param>
+        /// <returns>yyyy-MM-dd string</returns>
+        private string DoyYearToISO(string doyYear)
+        {
+            var twoInts = new Regex(@"^(\d+) (\d+)$");
+            var m = twoInts.Match(doyYear);
+            if (m.Success)
+            {
+                // Similar behavior to Operation's date converter in classic.
+                var doy =  Convert.ToInt32(m.Groups[1].Value, CultureInfo.InvariantCulture);
+                var year = Convert.ToInt32(m.Groups[2].Value, CultureInfo.InvariantCulture);
+                if (doy > 366)
+                {
+                    // Might be a yyyy doy string
+                    var tmp = doy;
+                    doy = year;
+                    year = tmp;
+                }
+                if (doy <= 366)
+                {
+                    var dt = new DateTime(year, 1, 1);
+                    return dt.AddDays(doy - 1).ToString("yyyy-MM-dd");
+                }
+            }
+            // Default value
+            return "0001-01-01";
         }
 
         /// <summary>
