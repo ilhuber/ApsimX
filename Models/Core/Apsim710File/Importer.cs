@@ -1219,9 +1219,8 @@
         private string OperationDateToNGDate(string date)
         {
             // Different formats accepted by classic's OperationsSchedule
-            // first four options save us from needing to call DMYtoISO
-            string[] dateFormatsFixed = {"d/M/yyyy", "d-M-yyyy", "d/M-yyyy",
-                                         "d-M/yyyy", "d-MMM-yyyy", "d_MMM_yyyy"};
+            // first two options save us from needing to call DMYtoISO
+            string[] dateFormatsFixed = {"d/M/yyyy", "d-M-yyyy", "d-MMM-yyyy", "d_MMM_yyyy"};
             string[] dateFormatsAnnual = {"d-MMM", "d_MMM"};
 
             if (String.IsNullOrEmpty(date))
