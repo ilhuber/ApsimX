@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Text;
+using System.Text.RegularExpressions;
 
 namespace APSIM.Shared.Utilities
 {
@@ -189,17 +189,16 @@ namespace APSIM.Shared.Utilities
         /// <param name="equation">The equation.</param>
         public void Parse(string equation)
         {
-            // state 3 - building up a keyword inside temp
-            int state = 1;
-
-            // We iterate over the expression character by character, but a phrase
-            // or keyword such as [Clock] is one symbol. 
-            // This string builder is used to build up a keyword from the expression,
-            // which is eventually stored in a symbol.
-            StringBuilder temp = new StringBuilder();
-            
             Symbol ctSymbol = new Symbol();
             ctSymbol.m_values = null;
+
+            // A minus sign is always unary if it immediately follows another operator or left parenthesis.
+            // Defined locally because it is only relevant here.
+            Func<bool> checkUnaryMinus = () =>
+                m_equation.Count < 1 ||
+                m_equation.Last().m_type == ExpressionType.Operator ||
+                m_equation.Last().m_name == "(" ||
+                m_equation.Last().m_name == "{";
 
             m_bError = false;
             m_sErrorDescription = "None";
@@ -208,171 +207,47 @@ namespace APSIM.Shared.Utilities
             m_postfix.Clear();
 
             //-- Remove all white spaces from the equation string --
-            equation = equation.Replace(" ", "");
-
-            for (int i = 0; i < equation.Length; i++)
+            var matches = parseRegex.Matches(equation.Replace(" ", ""));
+            foreach (Match m in matches)
             {
-                switch (state)
+                ctSymbol.m_name = m.Value;
+                // Awkward. Get the first named group this matches.
+                var g = m.Groups.Cast<Group>()
+                    .Where(g => g.Success && g.Name.All(c => !char.IsNumber(c)))
+                    .First();
+                switch (g.Name)
                 {
-                    case 1:
-                        if (Char.IsNumber(equation[i]))
-                        {
-                            state = 2;
-                            temp.Append(equation[i]);
-                        }
-                        else if (Char.IsLetter(equation[i]) || equation[i] == '[' || equation[i] == ']')
-                        {
-                            state = 3;
-                            temp.Append(equation[i]);
-                        }
-                        else
-                        {
-                            ctSymbol.m_name = equation[i].ToString();
-                            ctSymbol.m_value = 0;
-                            switch (ctSymbol.m_name)
-                            {
-                                case ",":
-                                    ctSymbol.m_type = ExpressionType.Comma;
-                                    break;
-                                case "(":
-                                case ")":
-                                case "{":
-                                case "}":
-                                    ctSymbol.m_type = ExpressionType.Bracket;
-                                    break;
-                                case "-":
-                                    ctSymbol.m_type = ExpressionType.Operator;
-                                    if (m_equation.Count < 1 || ((Symbol)m_equation[m_equation.Count - 1]).m_type == ExpressionType.Operator || ((Symbol)m_equation[m_equation.Count - 1]).m_name == "(" || ((Symbol)m_equation[m_equation.Count - 1]).m_name == "{")
-                                    {
-                                        // A minus sign is always unary if it immediately follows another operator or left parenthesis.
-                                        // We need to somehow differentiate between unary and binary minus operations.
-                                        // I have arbitrarily chosen to use -- for unary minus.
-                                        ctSymbol.m_name = "--";
-                                    }
-                                    break;
-                                default:
-                                    ctSymbol.m_type = ExpressionType.Operator;
-                                    break;
-                            }
-                            m_equation.Add(ctSymbol);
-                        }
+                    case "evalfn":
+                        ctSymbol.m_type = ExpressionType.EvalFunction;
                         break;
-                    case 2:
-                        if (Char.IsNumber(equation[i]) || (equation[i] == '.'))
-                            temp.Append(equation[i]);
-                        else if (!Char.IsLetter(equation[i]))
-                        {
-                            state = 1;
-                            ctSymbol.m_name = temp.ToString();
-                            ctSymbol.m_value = Double.Parse(temp.ToString(), CultureInfo.InvariantCulture);
-                            ctSymbol.m_type = ExpressionType.Value;
-                            m_equation.Add(ctSymbol);
-                            ctSymbol.m_name = equation[i].ToString();
-                            ctSymbol.m_value = 0;
-                            switch (ctSymbol.m_name)
-                            {
-                                case ",":
-                                    ctSymbol.m_type = ExpressionType.Comma;
-                                    break;
-                                case "(":
-                                case ")":
-                                case "{":
-                                case "}":
-                                    ctSymbol.m_type = ExpressionType.Bracket;
-                                    break;
-                                case "-":
-                                    ctSymbol.m_type = ExpressionType.Operator;
-                                    if (m_equation.Count < 1 || ((Symbol)m_equation[m_equation.Count - 1]).m_type == ExpressionType.Operator || ((Symbol)m_equation[m_equation.Count - 1]).m_name == "(" || ((Symbol)m_equation[m_equation.Count - 1]).m_name == "{")
-                                    {
-                                        // A minus sign is always unary if it immediately follows another operator or left parenthesis.
-                                        // We need to somehow differentiate between unary and binary minus operations.
-                                        // I have arbitrarily chosen to use -- for unary minus.
-                                        ctSymbol.m_name = "--";
-                                    }
-                                    break;
-                                default:
-                                    ctSymbol.m_type = ExpressionType.Operator;
-                                    break;
-                            }
-                            m_equation.Add(ctSymbol);
-                            temp.Clear();
-                        }
+                    case "variable":
+                        ctSymbol.m_type = ExpressionType.Variable;
+                        if (m.Value == "pi")
+                            ctSymbol.m_value = Math.PI;
+                        else if (m.Value == "e")
+                            ctSymbol.m_value = Math.E;
                         break;
-                    case 3:
-                        if (Char.IsLetterOrDigit(equation[i]) || (equation[i] == '.') ||
-                            (equation[i] == '[') || (equation[i] == ']') || (equation[i] == ':') || (equation[i] == '_') ||
-                            (equation[i] == '(' && equation[i+1] == ')') ||
-                            (equation[i] == ')' && equation[i-1] == '('))
-                            temp.Append(equation[i]);
-                        else
-                        {
-                            state = 1;
-                            ctSymbol.m_name = temp.ToString();
-                            ctSymbol.m_value = 0;
-                            if (equation[i] == '(')
-                                ctSymbol.m_type = ExpressionType.EvalFunction;
-                            else
-                            {
-                                if (ctSymbol.m_name == "pi")
-                                    ctSymbol.m_value = Math.PI;
-                                else if (ctSymbol.m_name == "e")
-                                    ctSymbol.m_value = Math.E;
-                                ctSymbol.m_type = ExpressionType.Variable;
-                            }
-                            m_equation.Add(ctSymbol);
-                            ctSymbol.m_name = equation[i].ToString();
-                            ctSymbol.m_value = 0;
-                            switch (ctSymbol.m_name)
-                            {
-                                case ",":
-                                    ctSymbol.m_type = ExpressionType.Comma;
-                                    break;
-                                case "(":
-                                case ")":
-                                case "{":
-                                case "}":
-                                    ctSymbol.m_type = ExpressionType.Bracket;
-                                    break;
-                                case "-":
-                                    ctSymbol.m_type = ExpressionType.Operator;
-                                    if (m_equation.Count < 1 || ((Symbol)m_equation[m_equation.Count - 1]).m_type == ExpressionType.Operator || ((Symbol)m_equation[m_equation.Count - 1]).m_name == "(" || ((Symbol)m_equation[m_equation.Count - 1]).m_name == "{")
-                                    {
-                                        // A minus sign is always unary if it immediately follows another operator or left parenthesis.
-                                        // We need to somehow differentiate between unary and binary minus operations.
-                                        // I have arbitrarily chosen to use -- for unary minus.
-                                        ctSymbol.m_name = "--";
-                                    }
-                                    break;
-                                default:
-                                    ctSymbol.m_type = ExpressionType.Operator;
-                                    break;
-                            }
-                            m_equation.Add(ctSymbol);
-                            temp.Clear();
-                        }
+                    case "value":
+                        ctSymbol.m_type = ExpressionType.Value;
+                        ctSymbol.m_value = Convert.ToDouble(m.Value, CultureInfo.InvariantCulture);
                         break;
-                }
-            }
-            if (temp.ToString() != "")
-            {
-                ctSymbol.m_name = temp.ToString();
-                if (state == 2)
-                {
-                    ctSymbol.m_value = Double.Parse(temp.ToString(), CultureInfo.InvariantCulture);
-                    ctSymbol.m_type = ExpressionType.Value;
-                }
-                else
-                {
-                    if (ctSymbol.m_name == "pi")
-                        ctSymbol.m_value = Math.PI;
-                    else if (ctSymbol.m_name == "e")
-                        ctSymbol.m_value = Math.E;
-                    else
-                        ctSymbol.m_value = 0;
-                    ctSymbol.m_type = ExpressionType.Variable;
+                    case "comma":
+                        ctSymbol.m_type = ExpressionType.Comma;
+                        break;
+                    case "bracket":
+                        ctSymbol.m_type = ExpressionType.Bracket;
+                        break;
+                    case "operator":
+                    default:
+                        ctSymbol.m_type = ExpressionType.Operator;
+                        if (m.Value == "-" && checkUnaryMinus())
+                            // Use -- to indicate unary minus
+                            ctSymbol.m_name = "--";
+                        break;
                 }
                 m_equation.Add(ctSymbol);
             }
+
         }
 
         /// <summary>Infix2s the postfix.</summary>
@@ -537,10 +412,10 @@ namespace APSIM.Shared.Utilities
             }
             switch (sym.m_name)
             {
-                case "^":
-                    return 3;
                 case "--":
                     return 4;
+                case "^":
+                    return 3;
                 case "/":
                 case "*":
                 case "%":
@@ -1408,6 +1283,14 @@ namespace APSIM.Shared.Utilities
             }
             return result;
         }
+
+        private static Regex parseRegex = new Regex(
+            @"(?<evalfn>\w+(?=\())|" +
+            @"(?<variable>([A-Za-z\[][A-z0-9:_]*\]?\.?)+)|" +
+            @"(?<value>\d+\.?\d*)|" +
+            @"(?<operator>[+\-*/\^])|" +
+            @"(?<bracket>[\(\{\)\}])|" +
+            @"(?<comma>,)");
 
         /// <summary>The M_B error</summary>
         protected bool m_bError = false;
