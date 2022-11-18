@@ -1285,11 +1285,18 @@ namespace APSIM.Shared.Utilities
         }
 
         private static Regex parseRegex = new Regex(
-            @"(?<evalfn>\w+(?=\())|" +
-            @"(?<variable>([A-Za-z\[][A-z0-9:_]*\]?\.?)+)|" +
+            // Characters followed by a not included opening brace not immediately closed.
+            @"(?<evalfn>\w+(?=\([^\)]))|" +
+            // A token consisting of at least one string beginning with a character
+            // or '[' separated by '.' and possibly ending in ()
+            @"(?<variable>([A-Za-z\[][A-Za-z0-9:_]*\]?\.?)+(\(\))?)|" +
+            // Decimal numbers
             @"(?<value>\d+\.?\d*)|" +
+            // Something from the operator set
             @"(?<operator>[+\-*/\^])|" +
+            // A parentheses or curly brace (apperently?)
             @"(?<bracket>[\(\{\)\}])|" +
+            // Just a comma
             @"(?<comma>,)");
 
         /// <summary>The M_B error</summary>
