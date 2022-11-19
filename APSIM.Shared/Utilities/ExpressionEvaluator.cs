@@ -194,7 +194,7 @@ namespace APSIM.Shared.Utilities
 
             // A minus sign is always unary if it immediately follows another operator or left parenthesis.
             // Defined locally because it is only relevant here.
-            Func<bool> checkUnaryMinus = () =>
+            bool checkUnaryMinus() =>
                 m_equation.Count < 1 ||
                 m_equation.Last().m_type == ExpressionType.Operator ||
                 m_equation.Last().m_name == "(" ||
