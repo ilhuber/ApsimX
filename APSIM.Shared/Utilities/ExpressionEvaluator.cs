@@ -192,14 +192,6 @@ namespace APSIM.Shared.Utilities
             Symbol ctSymbol = new Symbol();
             ctSymbol.m_values = null;
 
-            // A minus sign is always unary if it immediately follows another operator or left parenthesis.
-            // Defined locally because it is only relevant here.
-            bool checkUnaryMinus() =>
-                m_equation.Count < 1 ||
-                m_equation.Last().m_type == ExpressionType.Operator ||
-                m_equation.Last().m_name == "(" ||
-                m_equation.Last().m_name == "{";
-
             m_bError = false;
             m_sErrorDescription = "None";
 
@@ -248,6 +240,12 @@ namespace APSIM.Shared.Utilities
                 m_equation.Add(ctSymbol);
             }
 
+            // A minus sign is always unary if it immediately follows another operator or left parenthesis.
+            bool checkUnaryMinus() =>
+                m_equation.Count < 1 ||
+                m_equation.Last().m_type == ExpressionType.Operator ||
+                m_equation.Last().m_name == "(" ||
+                m_equation.Last().m_name == "{";
         }
 
         /// <summary>Infix2s the postfix.</summary>
@@ -445,88 +443,51 @@ namespace APSIM.Shared.Utilities
             switch (opr.m_name)
             {
                 case "^":
-                    if (sym1.m_values != null)
-                    {
-                        result.m_values = new double[sym1.m_values.Length];
-                        for (int i = 0; i < sym1.m_values.Length; i++)
-                            result.m_values[i] = Math.Pow(sym1.m_values[i], sym2.m_value);
-                    }
-                    else
-                        result.m_value = System.Math.Pow(sym1.m_value, sym2.m_value);
+                    evaluateOperator(Math.Pow);
                     break;
                 case "/":
+                    if (sym2.m_values is null && MathUtilities.FloatsAreEqual(sym2.m_value, 0, 1E-12))
                     {
-                        if (sym1.m_values != null && sym2.m_values != null)
-                            result.m_values = MathUtilities.Divide(sym1.m_values, sym2.m_values);
-                        else if (sym1.m_values != null)
-                            result.m_values = MathUtilities.Divide_Value(sym1.m_values, sym2.m_value);
-                        else if (sym2.m_values != null)
-                        {
-                            result.m_values = new double[sym2.m_values.Length];
-                            for (int i = 0; i < result.m_values.Length; i++)
-                                result.m_values[i] = MathUtilities.Divide(sym1.m_value, sym2.m_values[i], 0);
-                        }
-                        else
-                        {
-                            if (!MathUtilities.FloatsAreEqual(sym2.m_value, 0, 1E-12))
-                                result.m_value = sym1.m_value / sym2.m_value;
-                            else
-                            {
-                                result.m_name = "Divide by Zero.";
-                                result.m_type = ExpressionType.Error;
-                            }
-                        }
-                        break;
+                        result.m_name = "Divide by Zero.";
+                        result.m_type = ExpressionType.Error;
                     }
-                case "*":
-                    if (sym1.m_values != null && sym2.m_values != null)
-                        result.m_values = MathUtilities.Multiply(sym1.m_values, sym2.m_values);
-                    else if (sym1.m_values != null)
-                        result.m_values = MathUtilities.Multiply_Value(sym1.m_values, sym2.m_value);
-                    else if (sym2.m_values != null)
-                        result.m_values = MathUtilities.Multiply_Value(sym2.m_values, sym1.m_value);
                     else
-                        result.m_value = sym1.m_value * sym2.m_value;
+                        evaluateOperator((l, r) => l / r);
+                    break;
+                case "*":
+                    evaluateOperator((l, r) => l * r);
                     break;
                 case "%":
-                    result.m_value = sym1.m_value % sym2.m_value;
+                    evaluateOperator((l, r) => l % r);
                     break;
                 case "+":
-                    if (sym1.m_values != null && sym2.m_values != null)
-                        result.m_values = MathUtilities.Add(sym1.m_values, sym2.m_values);
-                    else if (sym1.m_values != null)
-                        result.m_values = MathUtilities.AddValue(sym1.m_values, sym2.m_value);
-                    else if (sym2.m_values != null)
-                        result.m_values = MathUtilities.AddValue(sym2.m_values, sym1.m_value);
-                    else
-                        result.m_value = sym1.m_value + sym2.m_value;
+                    evaluateOperator((l, r) => l + r);
                     break;
                 case "-":
-                    if (sym1.m_values != null && sym2.m_values != null)
-                        result.m_values = MathUtilities.Subtract(sym1.m_values, sym2.m_values);
-                    else if (sym1.m_values != null)
-                        result.m_values = MathUtilities.Subtract_Value(sym1.m_values, sym2.m_value);
-                    else if (sym2.m_values != null)
-                    {
-                        result.m_values = new double[sym2.m_values.Length];
-                        for (int i = 0; i < result.m_values.Length; i++)
-                            result.m_values[i] = sym1.m_value - sym2.m_values[i];
-                    }
-                    else
-                        result.m_value = sym1.m_value - sym2.m_value;
+                    evaluateOperator((l, r) => l - r);
                     break;
                 case "--":
-                    if (sym2.m_values != null && sym2.m_values.Length > 0)
-                        result.m_values = MathUtilities.Multiply_Value(sym2.m_values, -1);
-                    else
-                        result.m_value = sym2.m_value * -1;
+                    // Operand is on the right for unary minus.
+                    evaluateOperator((_, r) => -1 * r);
                     break;
                 default:
                     result.m_type = ExpressionType.Error;
-                    result.m_name = "Undefine operator: " + opr.m_name + ".";
+                    result.m_name = "Undefined operator: " + opr.m_name + ".";
                     break;
             }
             return result;
+
+            void evaluateOperator(Func<double, double, double> op)
+            {
+                if (sym1.m_values != null && sym2.m_values != null)
+                    result.m_values = sym1.m_values.Zip(sym2.m_values, op).ToArray();
+                else if (sym1.m_values != null)
+                    result.m_values = sym1.m_values.Select(v => op(v, sym2.m_value)).ToArray();
+                else if (sym2.m_values != null)
+                    result.m_values = sym2.m_values.Select(v => op(sym1.m_value, v)).ToArray();
+                else
+                    result.m_value = op(sym1.m_value, sym2.m_value);
+            }
         }
 
         /// <summary>Evaluates the function.</summary>
@@ -542,734 +503,164 @@ namespace APSIM.Shared.Utilities
             result.m_values = null;
             switch (name.ToLower())
             {
-                case "value":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Sum(Values);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
-                    break;
                 case "cos":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-                        if (args[0].m_values == null)
-                            result.m_value = System.Math.Cos(((Symbol)args[0]).m_value);
-                        else
-                            result.m_values = args[0].m_values.Select(Math.Cos).ToArray();
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Cos);
                     break;
                 case "sin":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-                        if (args[0].m_values == null)
-                        {
-                            result.m_value = System.Math.Sin(((Symbol)args[0]).m_value);
-                        }
-                        else
-                        {
-                            result.m_values = args[0].m_values.Select(Math.Sin).ToArray();
-                        }
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Sin);
                     break;
                 case "tan":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-                        if (args[0].m_values == null)
-                            result.m_value = System.Math.Tan(((Symbol)args[0]).m_value);
-                        else
-                            result.m_values = args[0].m_values.Select(Math.Tan).ToArray();
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Tan);
                     break;
                 case "cosh":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-                        if (args[0].m_values == null)
-                            result.m_value = System.Math.Cosh(((Symbol)args[0]).m_value);
-                        else
-                            result.m_values = args[0].m_values.Select(Math.Cosh).ToArray();
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Cosh);
                     break;
                 case "sinh":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-                        if (args[0].m_values == null)
-                            result.m_value = System.Math.Sinh(((Symbol)args[0]).m_value);
-                        else
-                            result.m_values = args[0].m_values.Select(Math.Sinh).ToArray();
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Sinh);
                     break;
                 case "tanh":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-                        if (args[0].m_values == null)
-                            result.m_value = System.Math.Tanh(((Symbol)args[0]).m_value);
-                        else
-                            result.m_values = args[0].m_values.Select(Math.Tanh).ToArray();
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Tanh);
                     break;
                 case "log10":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-                        if (args[0].m_values == null)
-                            result.m_value = System.Math.Log10(((Symbol)args[0]).m_value);
-                        else
-                            result.m_values = args[0].m_values.Select(Math.Log10).ToArray();
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Log10);
                     break;
                 case "ln":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-                        if (args[0].m_values == null)
-                            result.m_value = System.Math.Log(((Symbol)args[0]).m_value);
-                        else
-                            result.m_values = args[0].m_values.Select(v => Math.Log(v)).ToArray();
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Log);
                     break;
                 case "logn":
-                    if (args.Length == 2)
+                    if (args.Length != 2)
                     {
-                        if (args[1].m_values == null)
-                        {
-                            result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + "'" + ((Symbol)args[1]).m_value.ToString() + ")";
-                            if (args[0].m_values == null)
-                                result.m_value = System.Math.Log(((Symbol)args[0]).m_value, ((Symbol)args[1]).m_value);
-                            else
-                                result.m_values = args[0].m_values.Select(v => Math.Log(v, args[1].m_value)).ToArray();
-                        }
-                        else
-                        {
-                            result.m_name = "logn function does not support vector of bases";
-                            result.m_type = ExpressionType.Error;
-                        }
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
+                        result.m_name = $"Invalid number of parameters in: {name}.";
                         result.m_type = ExpressionType.Error;
+                        break;
                     }
+                    if (args[1].m_values != null)
+                    {
+                        result.m_name = "logn function does not support vector of bases";
+                        result.m_type = ExpressionType.Error;
+                        break;
+                    }
+                    result.m_name = $"{name}({args[0].m_value.ToString()}'{args[1].m_value.ToString()})";
+                    if (args[0].m_values == null)
+                        result.m_value = Math.Log(args[0].m_value, args[1].m_value);
+                    else
+                        result.m_values = args[0].m_values.Select(v => Math.Log(v, args[1].m_value)).ToArray();
                     break;
                 case "sqrt":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-                        if (args[0].m_values == null)
-                            result.m_value = System.Math.Sqrt(((Symbol)args[0]).m_value);
-                        else
-                            result.m_values = args[0].m_values.Select(Math.Sqrt).ToArray();
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Sqrt);
                     break;
                 case "abs":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-                        if (args[0].m_values == null)
-                            result.m_value = System.Math.Abs(((Symbol)args[0]).m_value);
-                        else
-                            result.m_values = args[0].m_values.Select(Math.Abs).ToArray();
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Abs);
                     break;
                 case "acos":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-                        if (args[0].m_values == null)
-                            result.m_value = System.Math.Acos(((Symbol)args[0]).m_value);
-                        else
-                            result.m_values = args[0].m_values.Select(Math.Acos).ToArray();
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Acos);
                     break;
                 case "asin":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-                        if (args[0].m_values == null)
-                            result.m_value = System.Math.Asin(((Symbol)args[0]).m_value);
-                        else
-                            result.m_values = args[0].m_values.Select(Math.Asin).ToArray();
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Asin);
                     break;
                 case "atan":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-                        if (args[0].m_values == null)
-                            result.m_value = System.Math.Atan(((Symbol)args[0]).m_value);
-                        else
-                            result.m_values = args[0].m_values.Select(Math.Atan).ToArray();
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Atan);
                     break;
                 case "exp":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-
-                        double[] values = ((Symbol)args[0]).m_values;
-                        if (values != null && values.Length > 0)
-                        {
-                            result.m_values = new double[values.Length];
-                            for (int i = 0; i < values.Length; i++)
-                                result.m_values[i] = System.Math.Exp(values[i]);
-                        }
-                        else
-                            result.m_value = System.Math.Exp(((Symbol)args[0]).m_value);
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Exp);
                     break;
                 case "mean":
-                    if (args.Length == 1)
-                    {
-                        double[] values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Average(values);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
+                    evaluateVectorFunction(MathUtilities.Average);
                     break;
                 case "sum":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Sum(Values);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                case "value":
+                    evaluateVectorFunction(MathUtilities.Sum);
                     break;
                 case "subtract":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        for (int i = 0; i < Values.Length; i++)
-                        {
-                            if (i == 0)
-                                result.m_value = Values[i];
-                            else
-                                result.m_value -= Values[i];
-                        }
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => arr.Aggregate((l, r) => l - r));
                     break;
                 case "multiply":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        for (int i = 0; i < Values.Length; i++)
-                        {
-                            if (i == 0)
-                                result.m_value = Values[i];
-                            else
-                                result.m_value *= Values[i];
-                        }
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(MathUtilities.Prod);
                     break;
                 case "divide":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        for (int i = 0; i < Values.Length; i++)
-                        {
-                            if (i == 0)
-                                result.m_value = Values[i];
-                            else if (MathUtilities.FloatsAreEqual(Values[i], 0, 1e-8))
-                                result.m_value = 0;
-                            else
-                                result.m_value /= Values[i];
-                        }
-                        result.m_name = name;
-                    }
-                    else if (args.Length == 2 || args.Length == 3)
+                    if (args.Length == 2 || args.Length == 3)
                     {
                         // Iff 3 args provided, use 3rd arg as error value.
-                        double errorValue = args.Length == 2 ? 0 : ((Symbol)args[2]).m_value;
+                        double errorValue = args.Length == 2 ? 0 : args[2].m_value;
                         result.m_name = name;
                         result.m_value = MathUtilities.Divide(args[0].m_value, args[1].m_value, errorValue);
+                        break;
                     }
-                    else
-                    {
-                        result.m_name = $"Invalid number of parameters ({args.Length}) in: {name}.";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => arr.Aggregate((l, r) => MathUtilities.FloatsAreEqual(r, 0, 1e-8) ?  0 : l / r));
                     break;
                 case "min":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Min(Values);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(MathUtilities.Min);
                     break;
                 case "max":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Max(Values);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(MathUtilities.Max);
                     break;
                 case "floor":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-                        if (args[0].m_values == null)
-                            result.m_value = Math.Floor(((Symbol)args[0]).m_value);
-                        else
-                            result.m_values = args[0].m_values.Select(Math.Floor).ToArray();
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Floor);
                     break;
                 case "ceil":
                 case "ceiling":
-                    if (args.Length == 1)
-                    {
-                        result.m_name = name + "(" + ((Symbol)args[0]).m_value.ToString() + ")";
-                        if (args[0].m_values == null)
-                            result.m_value = Math.Ceiling(((Symbol)args[0]).m_value);
-                        else
-                            result.m_values = args[0].m_values.Select(Math.Ceiling).ToArray();
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateUnaryFunction(Math.Ceiling);
                     break;
                 case "stddev":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.StandardDeviation(Values);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
-                    break;
-                case "median":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.5);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(MathUtilities.StandardDeviation);
                     break;
                 case "percentile5":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.05);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.05));
                     break;
                 case "percentile10":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.10);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.10));
                     break;
                 case "percentile15":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.15);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.15));
                     break;
                 case "percentile20":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.20);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.20));
                     break;
                 case "percentile25":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.25);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.25));
                     break;
                 case "percentile30":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.30);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.30));
                     break;
                 case "percentile35":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.35);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.35));
                     break;
                 case "percentile40":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.40);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.40));
                     break;
                 case "percentile45":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.45);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.45));
                     break;
+                case "median":
                 case "percentile50":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.50);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.50));
                     break;
                 case "percentile55":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.55);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.55));
                     break;
                 case "percentile60":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.60);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.60));
                     break;
                 case "percentile65":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.65);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.65));
                     break;
                 case "percentile70":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.70);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.70));
                     break;
                 case "percentile75":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.75);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.75));
                     break;
                 case "percentile80":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.80);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.80));
                     break;
                 case "percentile85":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.85);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.85));
                     break;
                 case "percentile90":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.90);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.90));
                     break;
                 case "percentile95":
-                    if (args.Length == 1)
-                    {
-                        result.m_value = ((Symbol)args[0]).m_value;
-                        double[] Values = ((Symbol)args[0]).m_values;
-                        result.m_value = MathUtilities.Percentile(Values, 0.95);
-                        result.m_name = name;
-                        result.m_values = null;
-                    }
-                    else
-                    {
-                        result.m_name = "Invalid number of parameters in: " + name + ".";
-                        result.m_type = ExpressionType.Error;
-                    }
+                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.95));
                     break;
                 default:
                     if (m_defaultFunctionEvaluation != null)
@@ -1282,6 +673,37 @@ namespace APSIM.Shared.Utilities
                     break;
             }
             return result;
+
+            // Evaluates a single argument function, either by applying it to a single value, or
+            // mapping across a vector of values.
+            void evaluateUnaryFunction(Func<double, double> fn)
+            {
+                if (args.Length != 1)
+                {
+                    result.m_name = "Invalid number of parameters in: " + name + ".";
+                    result.m_type = ExpressionType.Error;
+                    return;
+                }
+                result.m_name = $"{name}({args[0].m_value.ToString()})";
+                if (args[0].m_values == null)
+                    result.m_value = fn(args[0].m_value);
+                else
+                    result.m_values = args[0].m_values.Select(fn).ToArray();
+            }
+
+            // Evaluates a function intended to be used on a vector of values, like sum or stdev.
+            void evaluateVectorFunction(Func<double[], double> fn)
+            {
+                if (args.Length != 1)
+                {
+                    result.m_name = "Invalid number of parameters in: " + name + ".";
+                    result.m_type = ExpressionType.Error;
+                    return;
+                }
+                result.m_value = fn(args[0].m_values);
+                result.m_name = name;
+                result.m_values = null;
+            }
         }
 
         private static Regex parseRegex = new Regex(
