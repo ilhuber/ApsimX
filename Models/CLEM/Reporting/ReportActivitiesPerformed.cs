@@ -103,7 +103,7 @@ namespace Models.CLEM.Reporting
                 "[Activities].LastActivityPerformed.Status as Status",
                 "[Activities].LastActivityPerformed.Id as UniqueID",
                 "[Activities].LastActivityPerformed.StatusMessage as Message",
-                "[Activities].LastActivityPerformed.ModelType as Type"
+                "[Activities].LastActivityPerformed.ModelType as Type",
             };
 
             EventNames = new string[] { "[Activities].ActivityPerformed" };
@@ -227,7 +227,6 @@ namespace Models.CLEM.Reporting
                             activities = data.AsEnumerable().Select(a => a.Field<string>("UniqueID")).Distinct().OrderBy(a => a).ToList<string>();
                             break;
                     }
-                    //List<string> activities = data.AsEnumerable().Select(a => a.Field<string>("UniqueID")).Distinct().OrderBy(a => a).ToList<string>();
                     string timeStepUID = data.AsEnumerable().Where(a => a.Field<string>("Name") == "TimeStep").FirstOrDefault().Field<string>("UniqueID");
 
                     // get unique columns
@@ -238,7 +237,10 @@ namespace Models.CLEM.Reporting
                     tbl.Columns.Add("Activity");
                     foreach (var item in dates)
                     {
-                        tbl.Columns.Add(item.Month.ToString("00") + "\r\n" + item.ToString("yy"));
+                        if(item.Day != DateTime.DaysInMonth(item.Year, item.Month))
+                            tbl.Columns.Add("00\r\n" + item.ToString("yy"));
+                        else
+                            tbl.Columns.Add(item.Month.ToString("00") + "\r\n" + item.ToString("yy"));
                     }
                     // add blank column for resize row height of pixelbuf with font size change
                     tbl.Columns.Add(" ");
@@ -255,14 +257,22 @@ namespace Models.CLEM.Reporting
                             {
                                 DateTime dte = (DateTime)activityTick["Date"];
                                 string status = activityTick["Status"].ToString();
-                                dr[dte.Month.ToString("00") + "\r\n" + dte.ToString("yy")] = status;
+                                string tooltip = activityTick["Message"].ToString();
+
+                                string monthID = "00";
+                                if (dte.Day == DateTime.DaysInMonth(dte.Year, dte.Month))
+                                    monthID = dte.Month.ToString("00");
+
+                                if(!(monthID == "00" && status == "Timer"))
+                                    dr[monthID + "\r\n" + dte.ToString("yy")] = $"{status}:{tooltip}";
                             }
                             dr[" "] = " ";
                             tbl.Rows.Add(dr);
                         }
                     }
                 }
-                CreateHTMLVersion(tbl, directoryPath, darkTheme);
+                if(CreateHTML)
+                    CreateHTMLVersion(tbl, directoryPath, darkTheme);
                 return tbl;
             }
         }
@@ -284,7 +294,7 @@ namespace Models.CLEM.Reporting
                 "table,th,td {border: 1px solid #aaaaaa; }" +
                 "table th {padding:3px; color:[HeaderFontColor]; vertical-align: bottom; text-align: center;}" +
                 "th span {-ms-writing-mode: tb-rl;-webkit-writing-mode: vertical-rl;writing-mode: vertical-rl;transform: rotate(180deg);white-space: nowrap;}" +
-                "table td {padding:3px; }" +
+                "table td {padding:3px; position: relative;}" +
                 "td:nth-child(n+2) {text-align:center;}" +
                 "td:first-child {background: white; position: -webkit-sticky; /* for Safari */ position: sticky; left: 0; z-index: 9998;}" +
                 "th:nth-child(1) {text-align:left;}" +
@@ -310,6 +320,8 @@ namespace Models.CLEM.Reporting
                 ".r2 {grid-row: 2; }" +
                 ".r3 {grid-row: 3; }" +
                 "html {height 100%;}" +
+                ".note { position: relative;}" +
+                ".note:after { /* Magic Happens Here!!! */ content: \"\"; position: absolute; top: 0; right: 0; width: 0; height: 0; display: block; border-left: 8px solid transparent; border-bottom: 8px solid transparent; border-top: 8px solid #f00;} /* </magic> */" +
                 "\r\n</style>\r\n<!-- graphscript --></ head>\r\n<body>";
 
             // apply theme based settings
@@ -393,8 +405,10 @@ namespace Models.CLEM.Reporting
                             if (item.ToString() != " ")
                             {
                                 string splitter = "\\";
+                                var statusParts = item.ToString().Split(':');
+
                                 string image = "";
-                                switch (item.ToString())
+                                switch (statusParts[0])
                                 {
                                     case "Success":
                                     case "NoTask":
@@ -404,7 +418,7 @@ namespace Models.CLEM.Reporting
                                     case "Critical":
                                     case "Partial":
                                     case "Ignore":
-                                        image = $"ActivitiesReport{item.ToString()}Web";
+                                        image = $"ActivitiesReport{statusParts[0]}Web";
                                         break;
                                     case "Warning":
                                         image = $"ActivitiesReportIgnoreWeb";
@@ -419,12 +433,47 @@ namespace Models.CLEM.Reporting
 
                                 if (image == "")
                                 {
-                                    htmlString.Write($"<td>{item.ToString().Replace("\r\n", splitter)}</td>");
+                                    htmlString.Write($"<td>{statusParts[0].Replace("\r\n", splitter)}</td>");
                                 }
                                 else
                                 {
-                                    htmlString.Write($"<td><img src=\"http:////www.apsim.info/clem/Content/Resources/Images/IconsSVG/{image}.png\"</td>");
-                                } 
+                                    htmlString.Write($"<td title=\"{statusParts[1]}\" class=\"{(statusParts[1].Any()? "note":"")}\"><img src=\"http:////www.apsim.info/clem/Content/Resources/Images/IconsSVG/{image}.png\"></td>");
+                                }
+
+                                //string image = "";
+                                //switch (item.ToString())
+                                //{
+                                //    case "Success":
+                                //    case "NoTask":
+                                //    case "NotNeeded":
+                                //    case "Timer":
+                                //    case "Calculation":
+                                //    case "Critical":
+                                //    case "Partial":
+                                //    case "Ignore":
+                                //        image = $"ActivitiesReport{item.ToString()}Web";
+                                //        break;
+                                //    case "Warning":
+                                //        image = $"ActivitiesReportIgnoreWeb";
+                                //        break;
+                                //    case "Ignored":
+                                //        image = "ActivitiesReportBlankWeb";
+                                //        break;
+                                //    default:
+                                //        image = "";
+                                //        break;
+                                //}
+
+                                //if (image == "")
+                                //{
+                                //    htmlString.Write($"<td>{item.ToString().Replace("\r\n", splitter)}</td>");
+                                //}
+                                //else
+                                //{
+                                //    htmlString.Write($"<td><img src=\"http:////www.apsim.info/clem/Content/Resources/Images/IconsSVG/{image}.png\" tooltip=\"{"None"}\"></td>");
+                                //}
+
+
                             }
                         }
                         htmlString.WriteLine($"</tr>");
