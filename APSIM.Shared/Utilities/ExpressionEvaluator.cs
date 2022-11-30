@@ -153,16 +153,7 @@ namespace APSIM.Shared.Utilities
         /// <value>The variables.</value>
         public List<Symbol> Variables
         {
-            get
-            {
-                List<Symbol> var = new List<Symbol>();
-                foreach (Symbol sym in m_equation)
-                {
-                    if ((sym.m_type == ExpressionType.Variable) && (!var.Contains(sym)))
-                        var.Add(sym);
-                }
-                return var;
-            }
+            get => m_equation.Where(s => s.m_type == ExpressionType.Variable).Distinct().ToList();
             set
             {
                 foreach (Symbol sym in value)
@@ -232,7 +223,7 @@ namespace APSIM.Shared.Utilities
                     case "operator":
                     default:
                         ctSymbol.m_type = ExpressionType.Operator;
-                        if (m.Value == "-" && checkUnaryMinus())
+                        if (m.Value == "-" && CheckUnaryMinus())
                             // Use -- to indicate unary minus
                             ctSymbol.m_name = "--";
                         break;
@@ -241,7 +232,7 @@ namespace APSIM.Shared.Utilities
             }
 
             // A minus sign is always unary if it immediately follows another operator or left parenthesis.
-            bool checkUnaryMinus() =>
+            bool CheckUnaryMinus() =>
                 m_equation.Count < 1 ||
                 m_equation.Last().m_type == ExpressionType.Operator ||
                 m_equation.Last().m_name == "(" ||
@@ -504,28 +495,28 @@ namespace APSIM.Shared.Utilities
             switch (name.ToLower())
             {
                 case "cos":
-                    evaluateUnaryFunction(Math.Cos);
+                    EvaluateUnaryFunction(Math.Cos);
                     break;
                 case "sin":
-                    evaluateUnaryFunction(Math.Sin);
+                    EvaluateUnaryFunction(Math.Sin);
                     break;
                 case "tan":
-                    evaluateUnaryFunction(Math.Tan);
+                    EvaluateUnaryFunction(Math.Tan);
                     break;
                 case "cosh":
-                    evaluateUnaryFunction(Math.Cosh);
+                    EvaluateUnaryFunction(Math.Cosh);
                     break;
                 case "sinh":
-                    evaluateUnaryFunction(Math.Sinh);
+                    EvaluateUnaryFunction(Math.Sinh);
                     break;
                 case "tanh":
-                    evaluateUnaryFunction(Math.Tanh);
+                    EvaluateUnaryFunction(Math.Tanh);
                     break;
                 case "log10":
-                    evaluateUnaryFunction(Math.Log10);
+                    EvaluateUnaryFunction(Math.Log10);
                     break;
                 case "ln":
-                    evaluateUnaryFunction(Math.Log);
+                    EvaluateUnaryFunction(Math.Log);
                     break;
                 case "logn":
                     if (args.Length != 2)
@@ -547,35 +538,35 @@ namespace APSIM.Shared.Utilities
                         result.m_values = args[0].m_values.Select(v => Math.Log(v, args[1].m_value)).ToArray();
                     break;
                 case "sqrt":
-                    evaluateUnaryFunction(Math.Sqrt);
+                    EvaluateUnaryFunction(Math.Sqrt);
                     break;
                 case "abs":
-                    evaluateUnaryFunction(Math.Abs);
+                    EvaluateUnaryFunction(Math.Abs);
                     break;
                 case "acos":
-                    evaluateUnaryFunction(Math.Acos);
+                    EvaluateUnaryFunction(Math.Acos);
                     break;
                 case "asin":
-                    evaluateUnaryFunction(Math.Asin);
+                    EvaluateUnaryFunction(Math.Asin);
                     break;
                 case "atan":
-                    evaluateUnaryFunction(Math.Atan);
+                    EvaluateUnaryFunction(Math.Atan);
                     break;
                 case "exp":
-                    evaluateUnaryFunction(Math.Exp);
+                    EvaluateUnaryFunction(Math.Exp);
                     break;
                 case "mean":
-                    evaluateVectorFunction(MathUtilities.Average);
+                    EvaluateVectorFunction(MathUtilities.Average);
                     break;
                 case "sum":
                 case "value":
-                    evaluateVectorFunction(MathUtilities.Sum);
+                    EvaluateVectorFunction(MathUtilities.Sum);
                     break;
                 case "subtract":
-                    evaluateVectorFunction(arr => arr.Aggregate((l, r) => l - r));
+                    EvaluateVectorFunction(arr => arr.Aggregate((l, r) => l - r));
                     break;
                 case "multiply":
-                    evaluateVectorFunction(MathUtilities.Prod);
+                    EvaluateVectorFunction(MathUtilities.Prod);
                     break;
                 case "divide":
                     if (args.Length == 2 || args.Length == 3)
@@ -586,81 +577,81 @@ namespace APSIM.Shared.Utilities
                         result.m_value = MathUtilities.Divide(args[0].m_value, args[1].m_value, errorValue);
                         break;
                     }
-                    evaluateVectorFunction(arr => arr.Aggregate((l, r) => MathUtilities.FloatsAreEqual(r, 0, 1e-8) ?  0 : l / r));
+                    EvaluateVectorFunction(arr => arr.Aggregate((l, r) => MathUtilities.FloatsAreEqual(r, 0, 1e-8) ?  0 : l / r));
                     break;
                 case "min":
-                    evaluateVectorFunction(MathUtilities.Min);
+                    EvaluateVectorFunction(MathUtilities.Min);
                     break;
                 case "max":
-                    evaluateVectorFunction(MathUtilities.Max);
+                    EvaluateVectorFunction(MathUtilities.Max);
                     break;
                 case "floor":
-                    evaluateUnaryFunction(Math.Floor);
+                    EvaluateUnaryFunction(Math.Floor);
                     break;
                 case "ceil":
                 case "ceiling":
-                    evaluateUnaryFunction(Math.Ceiling);
+                    EvaluateUnaryFunction(Math.Ceiling);
                     break;
                 case "stddev":
-                    evaluateVectorFunction(MathUtilities.StandardDeviation);
+                    EvaluateVectorFunction(MathUtilities.StandardDeviation);
                     break;
                 case "percentile5":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.05));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.05));
                     break;
                 case "percentile10":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.10));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.10));
                     break;
                 case "percentile15":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.15));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.15));
                     break;
                 case "percentile20":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.20));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.20));
                     break;
                 case "percentile25":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.25));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.25));
                     break;
                 case "percentile30":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.30));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.30));
                     break;
                 case "percentile35":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.35));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.35));
                     break;
                 case "percentile40":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.40));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.40));
                     break;
                 case "percentile45":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.45));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.45));
                     break;
                 case "median":
                 case "percentile50":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.50));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.50));
                     break;
                 case "percentile55":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.55));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.55));
                     break;
                 case "percentile60":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.60));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.60));
                     break;
                 case "percentile65":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.65));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.65));
                     break;
                 case "percentile70":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.70));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.70));
                     break;
                 case "percentile75":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.75));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.75));
                     break;
                 case "percentile80":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.80));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.80));
                     break;
                 case "percentile85":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.85));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.85));
                     break;
                 case "percentile90":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.90));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.90));
                     break;
                 case "percentile95":
-                    evaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.95));
+                    EvaluateVectorFunction(arr => MathUtilities.Percentile(arr, 0.95));
                     break;
                 default:
                     if (m_defaultFunctionEvaluation != null)
@@ -676,7 +667,7 @@ namespace APSIM.Shared.Utilities
 
             // Evaluates a single argument function, either by applying it to a single value, or
             // mapping across a vector of values.
-            void evaluateUnaryFunction(Func<double, double> fn)
+            void EvaluateUnaryFunction(Func<double, double> fn)
             {
                 if (args.Length != 1)
                 {
@@ -692,7 +683,7 @@ namespace APSIM.Shared.Utilities
             }
 
             // Evaluates a function intended to be used on a vector of values, like sum or stdev.
-            void evaluateVectorFunction(Func<double[], double> fn)
+            void EvaluateVectorFunction(Func<double[], double> fn)
             {
                 if (args.Length != 1)
                 {
