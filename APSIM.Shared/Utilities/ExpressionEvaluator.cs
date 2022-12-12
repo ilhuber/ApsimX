@@ -434,7 +434,7 @@ namespace APSIM.Shared.Utilities
             switch (opr.m_name)
             {
                 case "^":
-                    evaluateOperator(Math.Pow);
+                    EvaluateOperator(Math.Pow);
                     break;
                 case "/":
                     if (sym2.m_values is null && MathUtilities.FloatsAreEqual(sym2.m_value, 0, 1E-12))
@@ -443,23 +443,23 @@ namespace APSIM.Shared.Utilities
                         result.m_type = ExpressionType.Error;
                     }
                     else
-                        evaluateOperator((l, r) => l / r);
+                        EvaluateOperator((l, r) => l / r);
                     break;
                 case "*":
-                    evaluateOperator((l, r) => l * r);
+                    EvaluateOperator((l, r) => l * r);
                     break;
                 case "%":
-                    evaluateOperator((l, r) => l % r);
+                    EvaluateOperator((l, r) => l % r);
                     break;
                 case "+":
-                    evaluateOperator((l, r) => l + r);
+                    EvaluateOperator((l, r) => l + r);
                     break;
                 case "-":
-                    evaluateOperator((l, r) => l - r);
+                    EvaluateOperator((l, r) => l - r);
                     break;
                 case "--":
                     // Operand is on the right for unary minus.
-                    evaluateOperator((_, r) => -1 * r);
+                    EvaluateOperator((_, r) => -1 * r);
                     break;
                 default:
                     result.m_type = ExpressionType.Error;
@@ -468,7 +468,7 @@ namespace APSIM.Shared.Utilities
             }
             return result;
 
-            void evaluateOperator(Func<double, double, double> op)
+            void EvaluateOperator(Func<double, double, double> op)
             {
                 if (sym1.m_values != null && sym2.m_values != null)
                     result.m_values = sym1.m_values.Zip(sym2.m_values, op).ToArray();
