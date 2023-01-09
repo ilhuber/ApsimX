@@ -139,8 +139,8 @@
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(e.Message + " " + e.InnerException.Message);
-                    throw new Exception(e.Message + " " + e.InnerException.Message);
+                    Console.WriteLine(e.ToString());
+                    throw new Exception(e.ToString());
                 }
             }
             else
@@ -441,7 +441,7 @@
             }
             catch (Exception exp)
             {
-                throw new Exception("Cannot import " + compNode.Name + " :Error - " + exp.ToString() + "\n");
+                throw new Exception($"Cannot import {compNode.Name}.", exp);
             }
             return newNode;
         }
@@ -462,7 +462,7 @@
             if (srcNode != null)
             {
                 XmlNode arrayNode;
-                
+
                 // values are ppm
                 // find soil layers and values for NO3
                 arrayNode = XmlUtilities.Find(srcNode, "Thickness");
@@ -708,7 +708,7 @@
             this.CopyNodeAndValue(compNode, newNode, "DataSource", "DataSource", false);
             this.CopyNodeAndValue(compNode, newNode, "Comments", "Comments", false);
             this.AddChildComponents(compNode, newNode);
-            
+
             return newNode;
         }
 
