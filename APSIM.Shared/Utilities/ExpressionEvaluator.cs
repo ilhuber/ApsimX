@@ -239,53 +239,42 @@ namespace APSIM.Shared.Utilities
                 m_equation.Last().m_name == "{";
         }
 
-        /// <summary>Infix2s the postfix.</summary>
+        /// <summary>Parses lexed tokens into postfix notation thunk.</summary>
         public void Infix2Postfix()
         {
-            Symbol tpSym;
-            Stack<Symbol> tpStack = new Stack<Symbol>();
+            Stack<Symbol> stack = new Stack<Symbol>();
             for (int i = 0; i < m_equation.Count; i++)
             {
-                Symbol sym = (Symbol)m_equation[i];
+                var sym = m_equation[i];
                 if ((sym.m_type == ExpressionType.Value) || (sym.m_type == ExpressionType.Variable))
                     m_postfix.Add(sym);
                 else if ((sym.m_name == "(") || (sym.m_name == "{"))
-                    tpStack.Push(sym);
+                    stack.Push(sym);
                 else if ((sym.m_name == ")") || (sym.m_name == "}"))
                 {
-                    if (tpStack.Count > 0)
+                    while (stack.Count > 0)
                     {
-                        tpSym = tpStack.Pop();
-                        while ((tpSym.m_name != "(") && (tpSym.m_name != "{"))
-                        {
-                            m_postfix.Add(tpSym);
-                            tpSym = tpStack.Pop();
-                        }
+                        var topSym = stack.Pop();
+                        if (topSym.m_name == "(" || topSym.m_name == "{")
+                            break;
+                        m_postfix.Add(topSym);
                     }
                 }
                 else
                 {
-                    if (tpStack.Count > 0)
+                    while (stack.Count > 0)
                     {
-                        tpSym = tpStack.Pop();
-                        while ((tpStack.Count != 0) && ((tpSym.m_type == ExpressionType.Operator) || (tpSym.m_type == ExpressionType.EvalFunction) || (tpSym.m_type == ExpressionType.Comma)) && (Precedence(tpSym) >= Precedence(sym)))
-                        {
-                            m_postfix.Add(tpSym);
-                            tpSym = tpStack.Pop();
-                        }
-                        if (((tpSym.m_type == ExpressionType.Operator) || (tpSym.m_type == ExpressionType.EvalFunction) || (tpSym.m_type == ExpressionType.Comma)) && (Precedence(tpSym) >= Precedence(sym)))
-                            m_postfix.Add(tpSym);
+                        var topSym = stack.Peek();
+                        if (((topSym.m_type == ExpressionType.Operator) || (topSym.m_type == ExpressionType.EvalFunction) || (topSym.m_type == ExpressionType.Comma)) && (Precedence(topSym) >= Precedence(sym)))
+                            m_postfix.Add(stack.Pop());
                         else
-                            tpStack.Push(tpSym);
+                            break;
                     }
-                    tpStack.Push(sym);
+                    stack.Push(sym);
                 }
             }
-            while (tpStack.Count > 0)
-            {
-                tpSym = tpStack.Pop();
-                m_postfix.Add(tpSym);
-            }
+            while (stack.Count > 0)
+                m_postfix.Add(stack.Pop());
         }
 
         /// <summary>Evaluates the postfix.</summary>
