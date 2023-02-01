@@ -27,8 +27,11 @@ namespace APSIM.Shared.Utilities
         /// <summary>The result</summary>
         Result,
 
-        /// <summary>The bracket</summary>
-        Bracket,
+        /// <summary>A left bracket</summary>
+        LeftBracket,
+
+        /// <summary>A right bracket</summary>
+        RightBracket,
 
         /// <summary>The comma</summary>
         Comma,
@@ -180,6 +183,8 @@ namespace APSIM.Shared.Utilities
         /// <param name="equation">The equation.</param>
         public void Parse(string equation)
         {
+            // Tracks the nesting depth of brackets. Brackets are unmatched if ever negative or nonzero at the end of the iteration.
+            var bracketTracker = 0;
             Symbol ctSymbol = new Symbol();
             ctSymbol.m_values = null;
 
@@ -217,8 +222,13 @@ namespace APSIM.Shared.Utilities
                     case "comma":
                         ctSymbol.m_type = ExpressionType.Comma;
                         break;
-                    case "bracket":
-                        ctSymbol.m_type = ExpressionType.Bracket;
+                    case "lbracket":
+                        ++bracketTracker;
+                        ctSymbol.m_type = ExpressionType.LeftBracket;
+                        break;
+                    case "rbracket":
+                        --bracketTracker;
+                        ctSymbol.m_type = ExpressionType.RightBracket;
                         break;
                     case "operator":
                     default:
@@ -228,9 +238,12 @@ namespace APSIM.Shared.Utilities
                             ctSymbol.m_name = "--";
                         break;
                 }
+                if (bracketTracker < 0)
+                    throw new ArgumentException($"Unmatched right parenthesis in {equation}!");
                 m_equation.Add(ctSymbol);
             }
-
+            if (bracketTracker != 0)
+                throw new ArgumentException($"Unmatched left parethesis in {equation}!");
             // A minus sign is always unary if it immediately follows another operator or left parenthesis.
             bool CheckUnaryMinus() =>
                 m_equation.Count < 1 ||
@@ -243,19 +256,18 @@ namespace APSIM.Shared.Utilities
         public void Infix2Postfix()
         {
             Stack<Symbol> stack = new Stack<Symbol>();
-            for (int i = 0; i < m_equation.Count; i++)
+            foreach(var sym in m_equation)
             {
-                var sym = m_equation[i];
                 if ((sym.m_type == ExpressionType.Value) || (sym.m_type == ExpressionType.Variable))
                     m_postfix.Add(sym);
-                else if ((sym.m_name == "(") || (sym.m_name == "{"))
+                else if (sym.m_type == ExpressionType.LeftBracket)
                     stack.Push(sym);
-                else if ((sym.m_name == ")") || (sym.m_name == "}"))
+                else if (sym.m_type == ExpressionType.RightBracket)
                 {
                     while (stack.Count > 0)
                     {
                         var topSym = stack.Pop();
-                        if (topSym.m_name == "(" || topSym.m_name == "{")
+                        if (topSym.m_type == ExpressionType.LeftBracket)
                             break;
                         m_postfix.Add(topSym);
                     }
@@ -264,6 +276,7 @@ namespace APSIM.Shared.Utilities
                 {
                     while (stack.Count > 0)
                     {
+                        // Pop away higher precedence symbols.
                         var topSym = stack.Peek();
                         if (((topSym.m_type == ExpressionType.Operator) || (topSym.m_type == ExpressionType.EvalFunction) || (topSym.m_type == ExpressionType.Comma)) && (Precedence(topSym) >= Precedence(sym)))
                             m_postfix.Add(stack.Pop());
@@ -381,7 +394,8 @@ namespace APSIM.Shared.Utilities
         {
             switch (sym.m_type)
             {
-                case ExpressionType.Bracket:
+                case ExpressionType.LeftBracket:
+                case ExpressionType.RightBracket:
                     return 6;
                 case ExpressionType.EvalFunction:
                     return 5;
@@ -686,20 +700,24 @@ namespace APSIM.Shared.Utilities
             }
         }
 
-        private static Regex parseRegex = new Regex(
-            // Characters followed by a not included opening brace not immediately closed.
-            @"(?<evalfn>\w+(?=\([^\)]))|" +
-            // A token consisting of at least one string beginning with a character
-            // or '[' separated by '.' and possibly ending in ()
-            @"(?<variable>([A-Za-z\[][A-Za-z0-9:_]*\]?\.?)+(\(\))?)|" +
-            // Decimal numbers
-            @"(?<value>\d+\.?\d*)|" +
-            // Something from the operator set
-            @"(?<operator>[+\-*/\^%])|" +
-            // A parentheses or curly brace (apperently?)
-            @"(?<bracket>[\(\{\)\}])|" +
-            // Just a comma
-            @"(?<comma>,)");
+        /// <summary>Regular expression that defines the simple grammar used by the expression evaluator </summary>
+        private static Regex parseRegex =
+            new Regex(String.Join('|', new[] {
+                // Characters followed by a not included opening brace not immediately closed.
+                @"(?<evalfn>\w+(?=\([^\)]))",
+                // A token consisting of at least one string beginning with a character
+                // or '[' separated by '.' and possibly ending in ()
+                @"(?<variable>([A-Za-z\[][A-Za-z0-9:_]*\]?\.?)+(\(\))?)",
+                // Decimal numbers
+                @"(?<value>\d+\.?\d*)",
+                // Something from the operator set
+                @"(?<operator>[+\-*/\^%])",
+                // An opening parentheses or curly brace (apperently?)
+                @"(?<lbracket>[\(\{])",
+                // A closing parenthesis or curly brace
+                @"(?<rbracket>)[\)\}]",
+                // Just a comma
+                @"(?<comma>,)"}));
 
         /// <summary>The M_B error</summary>
         protected bool m_bError = false;
