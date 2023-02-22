@@ -248,8 +248,7 @@ namespace APSIM.Shared.Utilities
             bool CheckUnaryMinus() =>
                 m_equation.Count < 1 ||
                 m_equation.Last().m_type == ExpressionType.Operator ||
-                m_equation.Last().m_name == "(" ||
-                m_equation.Last().m_name == "{";
+                m_equation.Last().m_type == ExpressionType.LeftBracket;
         }
 
         /// <summary>Parses lexed tokens into postfix notation thunk.</summary>
