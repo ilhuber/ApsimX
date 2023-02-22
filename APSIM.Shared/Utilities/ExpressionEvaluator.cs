@@ -701,7 +701,7 @@ namespace APSIM.Shared.Utilities
         }
 
         /// <summary>Regular expression that defines the simple grammar used by the expression evaluator </summary>
-        private static Regex parseRegex =
+        private static readonly Regex parseRegex =
             new Regex(String.Join('|', new[] {
                 // Characters followed by a not included opening brace not immediately closed.
                 @"(?<evalfn>\w+(?=\([^\)]))",
