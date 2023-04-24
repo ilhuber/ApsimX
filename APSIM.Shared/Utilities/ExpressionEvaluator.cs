@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -156,24 +155,20 @@ namespace APSIM.Shared.Utilities
         /// <value>The variables.</value>
         public List<Symbol> Variables
         {
-            get => m_equation.Where(s => s.m_type == ExpressionType.Variable).Distinct().ToList();
+            get => _variables;
             set
             {
                 foreach (Symbol sym in value)
-                {
-                    for (int i = 0; i < m_postfix.Count; i++)
-                    {
-                        if ((sym.m_name == ((Symbol)m_postfix[i]).m_name) && (((Symbol)m_postfix[i]).m_type == ExpressionType.Variable))
-                        {
-                            Symbol sym1 = (Symbol)m_postfix[i];
-                            sym1.m_value = sym.m_value;
-                            sym1.m_values = sym.m_values;
-                            m_postfix[i] = sym1;
-                        }
-                    }
-                }
+                    foreach (var idx in _variableIndexMap[sym.m_name])
+                        m_postfix[idx] = sym;
             }
         }
+
+        /// <summary>A list of the variables associated with this expression.</summary>
+        private List<Symbol> _variables = new();
+
+        /// <summary>A mapping of variable name to each occurence in the postfix equation.</summary>
+        private Dictionary<string, List<int>> _variableIndexMap = new();
 
         /// <summary>Initializes a new instance of the <see cref="ExpressionEvaluator"/> class.</summary>
         public ExpressionEvaluator()
@@ -192,10 +187,12 @@ namespace APSIM.Shared.Utilities
             m_sErrorDescription = "None";
 
             m_equation.Clear();
+            _variables.Clear();
             m_postfix.Clear();
+            _variableIndexMap.Clear();
 
             //-- Remove all white spaces from the equation string --
-            var matches = parseRegex.Matches(equation.Replace(" ", ""));
+            var matches = s_parseRegex.Matches(equation.Replace(" ", ""));
             foreach (Match m in matches)
             {
                 ctSymbol.m_name = m.Value;
@@ -241,6 +238,8 @@ namespace APSIM.Shared.Utilities
                 if (bracketTracker < 0)
                     throw new ArgumentException($"Unmatched right parenthesis in {equation}!");
                 m_equation.Add(ctSymbol);
+                if (ctSymbol.m_type == ExpressionType.Variable)
+                    _variables.Add(ctSymbol);
             }
             if (bracketTracker != 0)
                 throw new ArgumentException($"Unmatched left parethesis in {equation}!");
@@ -287,6 +286,15 @@ namespace APSIM.Shared.Utilities
             }
             while (stack.Count > 0)
                 m_postfix.Add(stack.Pop());
+            for (int i = 0; i < m_postfix.Count; i++)
+            {
+                var sym = m_postfix[i];
+                if (m_postfix[i].m_type == ExpressionType.Variable)
+                    if (_variableIndexMap.ContainsKey(sym.m_name))
+                        _variableIndexMap[sym.m_name].Add(i);
+                    else
+                        _variableIndexMap.Add(sym.m_name, new List<int> { i });
+            }
         }
 
         /// <summary>Evaluates the postfix.</summary>
@@ -700,8 +708,8 @@ namespace APSIM.Shared.Utilities
         }
 
         /// <summary>Regular expression that defines the simple grammar used by the expression evaluator </summary>
-        private static readonly Regex parseRegex =
-            new Regex(String.Join('|', new[] {
+        private static readonly Regex s_parseRegex =
+            new(String.Join('|', new[] {
                 // Characters followed by a not included opening brace not immediately closed.
                 @"(?<evalfn>\w+(?=\([^\)]))",
                 // A token consisting of at least one string beginning with a character
