@@ -155,7 +155,7 @@ namespace APSIM.Shared.Utilities
         /// <value>The variables.</value>
         public List<Symbol> Variables
         {
-            get => _variables;
+            get => new(_variables);
             set
             {
                 foreach (Symbol sym in value)
@@ -178,6 +178,11 @@ namespace APSIM.Shared.Utilities
         /// <param name="equation">The equation.</param>
         public void Parse(string equation)
         {
+            Dictionary<string, double> knownConstants = new()
+            {
+                ["pi"] = Math.PI,
+                ["e"]  = Math.E
+            };
             // Tracks the nesting depth of brackets. Brackets are unmatched if ever negative or nonzero at the end of the iteration.
             var bracketTracker = 0;
             Symbol ctSymbol = new Symbol();
@@ -185,7 +190,6 @@ namespace APSIM.Shared.Utilities
 
             m_bError = false;
             m_sErrorDescription = "None";
-
             m_equation.Clear();
             _variables.Clear();
             m_postfix.Clear();
@@ -206,11 +210,17 @@ namespace APSIM.Shared.Utilities
                         ctSymbol.m_type = ExpressionType.EvalFunction;
                         break;
                     case "variable":
-                        ctSymbol.m_type = ExpressionType.Variable;
-                        if (m.Value == "pi")
-                            ctSymbol.m_value = Math.PI;
-                        else if (m.Value == "e")
-                            ctSymbol.m_value = Math.E;
+                        // Could still be a constant such as pi.
+                        if (knownConstants.ContainsKey(m.Value))
+                        {
+                            ctSymbol.m_type  = ExpressionType.Value;
+                            ctSymbol.m_value = knownConstants[m.Value];
+                        }
+                        else
+                        {
+                            ctSymbol.m_type = ExpressionType.Variable;
+                            ctSymbol.m_value = 0.0;
+                        }
                         break;
                     case "value":
                         ctSymbol.m_type = ExpressionType.Value;
