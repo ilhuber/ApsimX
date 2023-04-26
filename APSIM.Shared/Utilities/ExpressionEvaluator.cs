@@ -164,6 +164,40 @@ namespace APSIM.Shared.Utilities
             }
         }
 
+        /// <summary>The M_B error</summary>
+        protected bool m_bError = false;
+        /// <summary>The M_S error description</summary>
+        protected string m_sErrorDescription = "None";
+        /// <summary>The m_result</summary>
+        protected double m_result = 0;
+        /// <summary>The m_results</summary>
+        protected double[] m_results = null;
+        /// <summary>The m_equation</summary>
+        protected List<Symbol> m_equation = new();
+        /// <summary>The m_postfix</summary>
+        protected List<Symbol> m_postfix = new();
+        /// <summary>The m_default function evaluation</summary>
+        protected EvaluateFunctionDelegate m_defaultFunctionEvaluation;
+
+        /// <summary>Regular expression that defines the simple grammar used by the expression evaluator </summary>
+        private static readonly Regex s_parseRegex =
+            new(String.Join('|', new[] {
+                // Characters followed by a not included opening brace not immediately closed.
+                @"(?<evalfn>\w+(?=\([^\)]))",
+                // A token consisting of at least one string beginning with a character
+                // or '[' separated by '.' and possibly ending in ()
+                @"(?<variable>([A-Za-z\[][A-Za-z0-9:_]*\]?\.?)+(\(\))?)",
+                // Decimal numbers
+                @"(?<value>\d+\.?\d*)",
+                // Something from the operator set
+                @"(?<operator>[+\-*/\^%])",
+                // An opening parentheses or curly brace (apperently?)
+                @"(?<lbracket>[\(\{])",
+                // A closing parenthesis or curly brace
+                @"(?<rbracket>)[\)\}]",
+                // Just a comma
+                @"(?<comma>,)"}));
+
         /// <summary>A list of the variables associated with this expression.</summary>
         private List<Symbol> _variables = new();
 
@@ -716,39 +750,5 @@ namespace APSIM.Shared.Utilities
                 result.m_values = null;
             }
         }
-
-        /// <summary>Regular expression that defines the simple grammar used by the expression evaluator </summary>
-        private static readonly Regex s_parseRegex =
-            new(String.Join('|', new[] {
-                // Characters followed by a not included opening brace not immediately closed.
-                @"(?<evalfn>\w+(?=\([^\)]))",
-                // A token consisting of at least one string beginning with a character
-                // or '[' separated by '.' and possibly ending in ()
-                @"(?<variable>([A-Za-z\[][A-Za-z0-9:_]*\]?\.?)+(\(\))?)",
-                // Decimal numbers
-                @"(?<value>\d+\.?\d*)",
-                // Something from the operator set
-                @"(?<operator>[+\-*/\^%])",
-                // An opening parentheses or curly brace (apperently?)
-                @"(?<lbracket>[\(\{])",
-                // A closing parenthesis or curly brace
-                @"(?<rbracket>)[\)\}]",
-                // Just a comma
-                @"(?<comma>,)"}));
-
-        /// <summary>The M_B error</summary>
-        protected bool m_bError = false;
-        /// <summary>The M_S error description</summary>
-        protected string m_sErrorDescription = "None";
-        /// <summary>The m_result</summary>
-        protected double m_result = 0;
-        /// <summary>The m_results</summary>
-        protected double[] m_results = null;
-        /// <summary>The m_equation</summary>
-        protected List<Symbol> m_equation = new List<Symbol>();
-        /// <summary>The m_postfix</summary>
-        protected List<Symbol> m_postfix = new List<Symbol>();
-        /// <summary>The m_default function evaluation</summary>
-        protected EvaluateFunctionDelegate m_defaultFunctionEvaluation;
     }
 }
