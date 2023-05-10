@@ -320,7 +320,9 @@ namespace APSIM.Shared.Utilities
                     {
                         // Pop away higher precedence symbols.
                         var topSym = stack.Peek();
-                        if (((topSym.m_type == ExpressionType.Operator) || (topSym.m_type == ExpressionType.EvalFunction) || (topSym.m_type == ExpressionType.Comma)) && (Precedence(topSym) >= Precedence(sym)))
+                        if (((topSym.m_type == ExpressionType.Operator) ||
+                             (topSym.m_type == ExpressionType.EvalFunction) ||
+                             (topSym.m_type == ExpressionType.Comma)) && (Precedence(topSym) >= Precedence(sym)))
                             m_postfix.Add(stack.Pop());
                         else
                             break;
@@ -585,7 +587,7 @@ namespace APSIM.Shared.Utilities
                         result.m_type = ExpressionType.Error;
                         break;
                     }
-                    result.m_name = $"{name}({args[0].m_value.ToString()}'{args[1].m_value.ToString()})";
+                    result.m_name = $"{name}({args[0].m_value}'{args[1].m_value})";
                     if (args[0].m_values == null)
                         result.m_value = Math.Log(args[0].m_value, args[1].m_value);
                     else
@@ -634,10 +636,16 @@ namespace APSIM.Shared.Utilities
                     EvaluateVectorFunction(arr => arr.Aggregate((l, r) => MathUtilities.FloatsAreEqual(r, 0, 1e-8) ?  0 : l / r));
                     break;
                 case "min":
-                    EvaluateVectorFunction(MathUtilities.Min);
+                    if (args.Length > 1)
+                        EvaluateVariadicFunction((l, r) => MathUtilities.IsLessThan(l, r) ? l : r);
+                    else
+                        EvaluateVectorFunction(MathUtilities.Min);
                     break;
                 case "max":
-                    EvaluateVectorFunction(MathUtilities.Max);
+                    if (args.Length > 1)
+                        EvaluateVariadicFunction((l, r) => MathUtilities.IsGreaterThan(l, r) ? l : r);
+                    else
+                        EvaluateVectorFunction(MathUtilities.Max);
                     break;
                 case "floor":
                     EvaluateUnaryFunction(Math.Floor);
@@ -719,6 +727,25 @@ namespace APSIM.Shared.Utilities
             }
             return result;
 
+            // Like if the funciton were an operator inserted between each argument
+            void EvaluateVariadicFunction(Func<double, double, double> fn)
+            {
+                result.m_value = args[0].m_value;
+                result.m_values = args[0].m_values;
+                result.m_name = $"{name}({String.Join(",", from s in args select s.m_name)})";
+                foreach (var s in args.Skip(1))
+                {
+                    if (result.m_values != null && s.m_values != null)
+                        result.m_values = s.m_values.Zip(result.m_values, fn).ToArray();
+                    else if (result.m_values != null)
+                        result.m_values = result.m_values.Select(v => fn(v, s.m_value)).ToArray();
+                    else if (s.m_values != null)
+                        result.m_values = s.m_values.Select(v => fn(result.m_value, v)).ToArray();
+                    else
+                        result.m_value = fn(result.m_value, s.m_value);
+                }
+            }
+
             // Evaluates a single argument function, either by applying it to a single value, or
             // mapping across a vector of values.
             void EvaluateUnaryFunction(Func<double, double> fn)
@@ -729,7 +756,7 @@ namespace APSIM.Shared.Utilities
                     result.m_type = ExpressionType.Error;
                     return;
                 }
-                result.m_name = $"{name}({args[0].m_value.ToString()})";
+                result.m_name = $"{name}({args[0].m_value})";
                 if (args[0].m_values == null)
                     result.m_value = fn(args[0].m_value);
                 else
