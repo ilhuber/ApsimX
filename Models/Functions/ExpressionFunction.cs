@@ -123,9 +123,7 @@ namespace Models.Functions
         {
             fn.EvaluatePostfix();
             if (fn.Error)
-            {
-               // throw new Exception(fn.ErrorDescription);
-            }
+                throw new Exception(fn.ErrorDescription);
         }
 
         /// <summary>
@@ -153,6 +151,8 @@ namespace Models.Functions
             Parse(fn, Expression);
             FillVariableNames(fn, RelativeTo, -1);
             Evaluate(fn);
+            if (fn.Error)
+                throw new Exception(fn.ErrorDescription);
             if (fn.Results != null)
                 return fn.Results;
             else
