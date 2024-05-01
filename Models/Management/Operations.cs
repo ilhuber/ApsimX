@@ -77,26 +77,36 @@ namespace Models
                 if (line.Length == 0)
                     return null;
 
-                Regex parser = new Regex(@"^(\/?\/?)\s*(\S*)\s+(.+)$");
-                Match match = parser.Match(line.Trim());
+                string lineTrimmed = line.Trim();
 
+                Regex parser = new Regex(@"\s*(\S*)\s+(.+)$");
+                Regex commentParser = new Regex(@"^(\/\/)");
+
+                Match match = commentParser.Match(lineTrimmed);
                 if (match.Success)
                 {
                     Operation operation = new Operation();
                     operation.Line = line;
+                    operation.Enabled = false;
+                    operation.Date = null;
+                    operation.Action = null;
+                    return operation;
+                }
 
-                    if (match.Groups[1].Value.CompareTo("//") == 0)
-                        operation.Enabled = false;
-                    else
-                        operation.Enabled = true;
+                match = parser.Match(lineTrimmed);
+                if (match.Success)
+                {
+                    Operation operation = new Operation();
+                    operation.Line = line;
+                    operation.Enabled = true;
 
-                    string dateString = match.Groups[2].Value;
+                    string dateString = match.Groups[1].Value;
                     operation.Date = DateUtilities.ValidateDateString(dateString);
                     if (operation.Date == null)
                         return null;
 
-                    if (match.Groups[3].Value.Length > 0)
-                        operation.Action = match.Groups[3].Value;
+                    if (match.Groups[2].Value.Length > 0)
+                        operation.Action = match.Groups[2].Value;
                     else
                         return null;
 
@@ -281,6 +291,18 @@ namespace Models
                         value = value.Substring(posLastPeriod + 1);
                     parameterValues[argumentIndex] = Enum.Parse(parameters[argumentIndex].ParameterType, value);
                 }
+                else if (parameters[argumentIndex].ParameterType.IsArray)
+                {
+                    string[] tokens = value.Split(' ');
+                    var elementType = parameters[argumentIndex].ParameterType.GetElementType();
+                    if (elementType == typeof(double))
+                        parameterValues[argumentIndex] = MathUtilities.StringsToDoubles(tokens);
+                    else if (elementType == typeof(int))
+                        parameterValues[argumentIndex] = MathUtilities.StringsToIntegers(tokens);
+                    else if (elementType == typeof(string))
+                        parameterValues[argumentIndex] = tokens;
+                }
+
             }
 
             //if there were missing named arguments in the method call then use the default values for them.

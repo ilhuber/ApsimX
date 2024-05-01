@@ -8,6 +8,7 @@ using Models.Functions;
 using Models.Interfaces;
 using Models.Soils;
 using Models.Soils.Arbitrator;
+using Models.Soils.Nutrients;
 using Models.Surface;
 using Newtonsoft.Json;
 
@@ -160,6 +161,9 @@ namespace Models.PMF.OilPalm
         [Link(ByName = true)]
         private ISolute NO3 = null;
 
+        /// <summary>Nutrient model.</summary>
+        [Link]
+        Nutrient nutrient = null;
 
         /// <summary>Aboveground mass</summary>
         public IBiomass AboveGround { get { return new Biomass(); } }
@@ -829,9 +833,6 @@ namespace Models.PMF.OilPalm
         /// <summary>Occurs when [harvesting].</summary>
         public event EventHandler Harvesting;
 
-        /// <summary>Occurs when [incorp fom].</summary>
-        public event FOMLayerDelegate IncorpFOM;
-
         /// <summary>Occurs when [biomass removed].</summary>
         public event BiomassRemovedDelegate BiomassRemoved;
 
@@ -1011,7 +1012,7 @@ namespace Models.PMF.OilPalm
             FOMLayerType FomLayer = new FOMLayerType();
             FomLayer.Type = CanopyType;
             FomLayer.Layer = FOMLayers;
-            IncorpFOM.Invoke(FomLayer);
+            nutrient.DoIncorpFOM(FomLayer);
 
 
         }
@@ -1251,7 +1252,7 @@ namespace Models.PMF.OilPalm
             }
 
             double TotPotNUptake = MathUtilities.Sum(PotNUptake);
-            double Fr = Math.Min(1.0, Ndemand / TotPotNUptake);
+            double Fr = Math.Min(1.0, MathUtilities.Divide(Ndemand,TotPotNUptake,0.0));
 
             double[] uptake = new double[soilPhysical.LL15mm.Length];
             for (int j = 0; j < soilPhysical.LL15mm.Length; j++)
@@ -1259,7 +1260,7 @@ namespace Models.PMF.OilPalm
             NO3.SetKgHa(SoluteSetterType.Plant, MathUtilities.Subtract(NO3.kgha, uptake));
             NitrogenUptake = uptake;
 
-            Fr = Math.Min(1.0, Math.Max(0, MathUtilities.Sum(NitrogenUptake) / BunchNDemand));
+            Fr = Math.Min(1.0, Math.Max(0, MathUtilities.Divide( MathUtilities.Sum(NitrogenUptake), BunchNDemand,0.0)));
             double DeltaBunchN = BunchNDemand * Fr;
 
             double Tot = 0;
@@ -1271,7 +1272,7 @@ namespace Models.PMF.OilPalm
 
             // Calculate fraction of N demand for Vegetative Parts
             if ((Ndemand - DeltaBunchN) > 0)
-                Fr = Math.Max(0.0, ((MathUtilities.Sum(NitrogenUptake) - DeltaBunchN) / (Ndemand - DeltaBunchN)));
+                Fr = Math.Max(0.0, MathUtilities.Divide(MathUtilities.Sum(NitrogenUptake) - DeltaBunchN, Ndemand - DeltaBunchN, 0.0));
             else
                 Fr = 0.0;
 

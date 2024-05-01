@@ -1,16 +1,17 @@
-﻿using APSIM.Shared.Utilities;
-using DocumentFormat.OpenXml.InkML;
-using Gtk;
-using Models;
-using Models.Core;
-using Models.Core.ApsimFile;
-using Models.Soils;
-using Models.Storage;
-using NUnit.Framework;
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using APSIM.Shared.Utilities;
+using Models;
+using Models.Core;
+using Models.Core.ApsimFile;
+using Models.Factorial;
+using Models.PostSimulationTools;
+using Models.Soils;
+using Models.Storage;
+using NUnit.Framework;
 
 namespace UnitTests
 {
@@ -160,6 +161,7 @@ Simulation,1,20.000,1,Current,10,Zone
         /// technically. This isn't really ideal but it makes things simpler...).
         /// </summary>
         [Test]
+        [Order(2)]// If not ordered causes test failure when ran in conjunction with TestDeleteSimulationsCommandThrowsException().
         public void TestSimNameRegex()
         {
             string models = typeof(IModel).Assembly.Location;
@@ -167,7 +169,7 @@ Simulation,1,20.000,1,Current,10,Zone
             sim1.Name = "sim1";
 
             IModel sim2 = Utilities.GetRunnableSim().Children[1];
-            sim2.Name = "sim2";
+            sim2.Name = "originalSimAfterAdd";
 
             IModel sim3 = Utilities.GetRunnableSim().Children[1];
             sim3.Name = "simulation3";
@@ -188,7 +190,7 @@ Simulation,1,20.000,1,Current,10,Zone
             string stdout = Utilities.RunModels(sims, args);
 
             Assert.True(stdout.Contains("sim1"));
-            Assert.True(stdout.Contains("sim2"));
+            Assert.False(stdout.Contains("originalSimAfterAdd"));
             Assert.False(stdout.Contains("simulation3"));
             Assert.False(stdout.Contains("Base"));
 
@@ -196,7 +198,7 @@ Simulation,1,20.000,1,Current,10,Zone
             stdout = Utilities.RunModels(sims, args);
 
             Assert.True(stdout.Contains("sim1"));
-            Assert.False(stdout.Contains("sim2"));
+            Assert.False(stdout.Contains("originalSimAfterAdd"));
             Assert.False(stdout.Contains("simulation3"));
             Assert.False(stdout.Contains("Base"));
 
@@ -204,12 +206,13 @@ Simulation,1,20.000,1,Current,10,Zone
             stdout = Utilities.RunModels(sims, args);
 
             Assert.False(stdout.Contains("sim1"));
-            Assert.False(stdout.Contains("sim2"));
+            Assert.False(stdout.Contains("originalSimAfterAdd"));
             Assert.True(stdout.Contains("simulation3"));
             Assert.True(stdout.Contains("Base"));
         }
 
         [Test]
+        [Order(1)] // If not ordered causes test failure when ran in conjunction with TestDeleteSimulationsCommandThrowsException().
         public void TestListSimulationNames()
         {
             Simulations simpleExperiment = Utilities.GetSimpleExperiment();
@@ -235,6 +238,608 @@ ExperimentX2Y1
 ExperimentY2
 ";
             Assert.AreEqual(expected, output);
+        }
+
+        [Test]
+        public void TestApplySwitchAddWithModelName()
+        {
+            Simulations file = Utilities.GetRunnableSim();
+
+            Zone fieldNode = file.FindInScope<Zone>();
+
+            // Get path string for the config file that changes the date.
+            string savingFilePath = Path.Combine(Path.GetTempPath(), "savingFile.apsimx");
+            string newFileString = $"add [Zone] Report\nsave savingFile.apsimx";
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "config1.txt");
+            File.WriteAllText(newTempConfigFile, newFileString);
+
+            bool fileExists = File.Exists(newTempConfigFile);
+            Assert.True(File.Exists(newTempConfigFile));
+
+            Utilities.RunModels(file, $"--apply {newTempConfigFile}");
+
+            string text = File.ReadAllText(savingFilePath);
+            // Reload simulation from file text. Needed to see changes made.
+            Simulations sim2 = FileFormat.ReadFromString<Simulations>(text, e => throw e, false).NewModel as Simulations;
+
+            // Get new values from changed simulation.
+            Zone fieldNodeAfterChange = sim2.FindInScope<Zone>();
+            // See if the report shows up as a second child of Field with a specific name.
+            Models.Report newReportNode = fieldNodeAfterChange.FindChild<Models.Report>("Report1");
+            Assert.IsNotNull(newReportNode);
+        }
+
+        [Test]
+        public void TestApplySwitchAddFromAnotherApsimxFile()
+        {
+            Simulations file = Utilities.GetRunnableSim();
+            Simulations file2 = Utilities.GetRunnableSim();
+            Simulations file3 = Utilities.GetRunnableSim();
+
+            Zone fieldNode = file.FindInScope<Zone>();
+
+            // Get path string for the config file that changes the date.
+            string newApsimFile = file2.FileName;
+            string savingApsimFileName = file3.FileName;
+            int indexOfNameStart = savingApsimFileName.LastIndexOf(Path.DirectorySeparatorChar) + 1;
+            string savingApsimFileNameShort = savingApsimFileName.Substring(indexOfNameStart);
+            string newFileString = $"add [Zone] {newApsimFile};[Report]\nsave {savingApsimFileNameShort} ";
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "config2.txt");
+            //string newTempConfigFile = "config2.txt";
+            File.WriteAllText(newTempConfigFile, newFileString);
+
+            bool fileExists = File.Exists(newTempConfigFile);
+            bool apsimFileExists = File.Exists(newApsimFile);
+            Assert.True(File.Exists(newTempConfigFile));
+            Assert.True(File.Exists(newApsimFile));
+
+            Utilities.RunModels(file, $"--apply {newTempConfigFile}");
+
+            string text = File.ReadAllText(savingApsimFileName);
+            // Reload simulation from file text. Needed to see changes made.
+            Simulations originalSimAfterAdd = FileFormat.ReadFromString<Simulations>(text, e => throw e, false).NewModel as Simulations;
+
+            // Get new values from changed simulation.
+            Zone fieldNodeAfterChange = originalSimAfterAdd.FindInScope<Zone>();
+            // See if the report shows up as a second child of Field with a specific name.
+            Models.Report newReportNode = fieldNodeAfterChange.FindChild<Models.Report>("Report1");
+            Assert.IsNotNull(newReportNode);
+
+        }
+
+        [Test]
+        public void TestApplySwitchDeleteCommand()
+        {
+            Simulations file = Utilities.GetRunnableSim();
+
+            Zone fieldNode = file.FindInScope<Zone>();
+
+            // Get path string for the config file that changes the date.
+            string savingFilePath = Path.Combine(Path.GetTempPath(), "savingFile.apsimx");
+            string newFileString = "delete [Zone].Report\nsave savingFile.apsimx";
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "config3.txt");
+            File.WriteAllText(newTempConfigFile, newFileString);
+
+            bool fileExists = File.Exists(newTempConfigFile);
+            Assert.True(File.Exists(newTempConfigFile));
+
+            Utilities.RunModels(file, $"--apply {newTempConfigFile}");
+
+            string text = File.ReadAllText(savingFilePath);
+            // Reload simulation from file text. Needed to see changes made.
+            Simulations sim2 = FileFormat.ReadFromString<Simulations>(text, e => throw e, false).NewModel as Simulations;
+
+            // Get new values from changed simulation.
+            Zone fieldNodeAfterChange = sim2.FindInScope<Zone>();
+            // See if the report shows up as a second child of Field with a specific name.
+            Models.Report ReportNodeThatShouldHaveBeenDeleted = fieldNodeAfterChange.FindChild<Models.Report>("Report");
+            Assert.IsNull(ReportNodeThatShouldHaveBeenDeleted);
+        }
+
+        [Test]
+        public void TestApplySwitchDuplicateCommand()
+        {
+            Simulations file = Utilities.GetRunnableSim();
+
+            Simulation simulationNode = file.FindInScope<Simulation>();
+
+            // Get path string for the config file that changes the date.
+            string savingFilePath = Path.Combine(Path.GetTempPath(), "savingFile.apsimx");
+            string newFileString = "duplicate [Simulation] SimulationCopy\nsave savingFile.apsimx";
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "config4.txt");
+            File.WriteAllText(newTempConfigFile, newFileString);
+
+            bool fileExists = File.Exists(newTempConfigFile);
+            Assert.True(File.Exists(newTempConfigFile));
+
+            Utilities.RunModels(file, $"--apply {newTempConfigFile}");
+
+            string text = File.ReadAllText(savingFilePath);
+            // Reload simulation from file text. Needed to see changes made.
+            Simulations sim2 = FileFormat.ReadFromString<Simulations>(text, e => throw e, false).NewModel as Simulations;
+
+            // Get new values from changed ApsimX file.
+            Simulation simulationCopyNodeAfterChange = sim2.FindInScope<Simulation>("SimulationCopy");
+            Simulation originalSimulationAfterChange = sim2.FindInScope<Simulation>("Simulation");
+
+            Assert.AreNotEqual(simulationCopyNodeAfterChange.Name, originalSimulationAfterChange.Name);
+            Assert.IsNotNull(simulationCopyNodeAfterChange);
+            Assert.IsNotNull(originalSimulationAfterChange);
+        }
+
+        [Test]
+        public void TestApplySwitchWithFileDoesNotChangeOriginal()
+        {
+            Simulations file = Utilities.GetRunnableSim();
+
+            Zone fieldNode = file.FindInScope<Zone>();
+
+            // Get path string for the config file that changes the date.
+            string newFileString = "add [Zone] Report\nsave modifiedSim.apsimx";
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "configFileDoesNotChangeOriginal.txt");
+            File.WriteAllText(newTempConfigFile, newFileString);
+
+            bool fileExists = File.Exists(newTempConfigFile);
+            Assert.True(File.Exists(newTempConfigFile));
+
+            Utilities.RunModels(file, $"--apply {newTempConfigFile}");
+
+            string text = File.ReadAllText(file.FileName);
+            // Reload simulation from file text. Needed to see changes made.
+            Simulations sim2 = FileFormat.ReadFromString<Simulations>(text, e => throw e, false).NewModel as Simulations;
+            List<Models.Report> reportList = sim2.FindAllInScope<Models.Report>().ToList();
+            Assert.Less(reportList.Count, 2);
+        }
+
+        [Test]
+        public void TestApplySwitchSaveFromConfigFile()
+        {
+            Simulations file = Utilities.GetRunnableSim();
+
+            Simulation simulationNode = file.FindInScope<Simulation>();
+
+            string newSaveFileName = file.FileName.Insert(file.FileName.LastIndexOf("."), "2").Split('/', '\\').ToList().Last();
+            string simpleFileName = file.FileName.Split('/', '\\').ToList().Last();
+            // Get path string for the config file that changes the date.
+            string newFileString = $"load {simpleFileName}\nadd [Zone] Report\nsave {newSaveFileName}";
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "config5.txt");
+            File.WriteAllText(newTempConfigFile, newFileString);
+
+            bool fileExists = File.Exists(newTempConfigFile);
+            Assert.True(File.Exists(newTempConfigFile));
+
+            Utilities.RunModels($"--apply {newTempConfigFile}");
+
+            string text = File.ReadAllText(Path.GetDirectoryName(newTempConfigFile) + Path.DirectorySeparatorChar + newSaveFileName);
+            // Reload simulation from file text. Needed to see changes made.
+            Simulations sim2 = FileFormat.ReadFromString<Simulations>(text, e => throw e, false).NewModel as Simulations;
+
+            // Get new values from changed simulation.
+            Zone fieldNodeAfterChange = sim2.FindInScope<Zone>();
+
+            // See if the report shows up as a second child of Field with a specific name.
+            Models.Report secondReportNodeThatShouldBePresent = fieldNodeAfterChange.FindChild<Models.Report>("Report1");
+            Assert.IsNotNull(secondReportNodeThatShouldBePresent);
+
+            // Make sure first sim was not modified.
+            string firstSimText = File.ReadAllText(Path.GetDirectoryName(newTempConfigFile) + Path.DirectorySeparatorChar + simpleFileName);
+            Simulations sim1 = FileFormat.ReadFromString<Simulations>(firstSimText, e => throw e, false).NewModel as Simulations;
+            Zone fieldNodeFromOriginalSim = sim1.FindInScope<Zone>();
+            Models.Report ReportNodeThatShouldNotBePresent = fieldNodeFromOriginalSim.FindChild<Models.Report>("Report1");
+            Assert.IsNull(ReportNodeThatShouldNotBePresent);
+        }
+
+        [Test]
+        public void TestApplySwitchLoadFromConfigFile()
+        {
+            Simulations file = Utilities.GetRunnableSim();
+
+            Simulation simulationNode = file.FindInScope<Simulation>();
+
+            string apsimxFileName = file.FileName.Split('\\', '/').ToList().Last();
+
+            //File.Move(file.FileName, $"C:/unit-test-temp/{apsimxFileName}");
+
+            string newFileString = $"load {apsimxFileName}\nadd [Zone] Report\nsave {apsimxFileName}";
+            //string newTempConfigFile = Path.Combine("C:/unit-test-temp/", "config6.txt");
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "config6.txt");
+            File.WriteAllText(newTempConfigFile, newFileString);
+
+            bool fileExists = File.Exists(newTempConfigFile);
+            Assert.True(File.Exists(newTempConfigFile));
+
+            Utilities.RunModels($"--apply {newTempConfigFile}");
+
+            string text = File.ReadAllText(file.FileName);
+            // Reload simulation from file text. Needed to see changes made.
+            Simulations sim2 = FileFormat.ReadFromString<Simulations>(text, e => throw e, false).NewModel as Simulations;
+
+            // Get new values from changed simulation.
+            Zone fieldNodeAfterChange = sim2.FindInScope<Zone>();
+
+            // See if the report shows up as a second child of Field with a specific name.
+            Models.Report secondReportNodeThatShouldBePresent = fieldNodeAfterChange.FindChild<Models.Report>("Report1");
+            Assert.IsNotNull(secondReportNodeThatShouldBePresent);
+        }
+
+        [Test]
+        public void TestApplySwitchCreateFromConfigFile()
+        {
+            string newApsimxFileName = "newSim.apsimx";
+            string newApsimxFilePath = Path.Combine(Path.GetTempPath(), newApsimxFileName);
+
+            string newConfigFilePath = Path.Combine(Path.GetTempPath(), "configFile8.txt");
+            string newCommandString = $"save {newApsimxFileName}";
+            File.WriteAllText(newConfigFilePath, newCommandString);
+
+            bool fileExists = File.Exists(newConfigFilePath);
+            Assert.True(File.Exists(newConfigFilePath));
+
+            Utilities.RunModels($"--apply {newConfigFilePath}");
+
+            string text = File.ReadAllText(newApsimxFilePath);
+            // Reload simulation from file text. Needed to see changes made.
+            Simulations sim = FileFormat.ReadFromString<Simulations>(text, e => throw e, false).NewModel as Simulations;
+
+            // Ensure that the sim was created.
+            Assert.IsNotNull(sim);
+        }
+
+        [Test]
+        public void TestApplySwitchRunFromConfigFile()
+        {
+            string newSimName = "newSim1.apsimx";
+            string newApsimxFilePath = Path.Combine(Path.GetTempPath(), newSimName);
+            string newConfigFilePath = Path.Combine(Path.GetTempPath(), "configFile9.txt");
+
+            string newDalbyMetFilePath = Path.Combine(Path.GetTempPath(), "dalby.met");
+
+            string newCommands = $@"save {newSimName}
+load {newSimName}
+add [Simulations] Simulation
+add [Simulation] Summary
+add [Simulation] Clock
+add [Simulation] Weather
+[Weather].FileName={newDalbyMetFilePath}
+[Clock].Start=1900/01/01
+[Clock].End=1900/01/02
+save {newSimName}
+run";
+
+            File.WriteAllText(newConfigFilePath, newCommands);
+            bool configFileExists = File.Exists(newConfigFilePath);
+            Assert.True(configFileExists);
+
+
+            string dalbyMetFileText =
+@"[weather.met.weather]
+!station number = 041023
+!station name = DALBY POST OFFICE
+latitude = -27.18(DECIMAL DEGREES)
+longitude = 151.26(DECIMAL DEGREES)
+tav = 19.09(oC)! annual average ambient temperature
+amp = 14.63(oC)! annual amplitude in mean monthly temperature
+!Data extracted from Silo (by odin) on 20140902
+!As evaporation is read at 9am, it has been shifted to day before
+!ie The evaporation measured on 20 April is in row for 19 April
+!The 6 digit code indicates the source of the 6 data columns
+!0 actual observation, 1 actual observation composite station
+!2 daily raster, 7 long term average raster
+!more detailed two digit codes are available
+!
+!For further information see the documentation on the datadrill
+!  http://www.dnr.qld.gov.au/silo/datadril.html
+!
+year  day radn  maxt   mint  rain  pan    vp      code
+ ()   () (MJ/m^2) (oC) (oC)  (mm)  (mm)  (hPa)      ()
+1900   1   24.0  29.4  18.6   0.0   8.2  20.3 300070
+1900   2   25.0  31.6  17.2   0.0   8.2  16.5 300070
+";
+
+            File.WriteAllText(newDalbyMetFilePath, dalbyMetFileText);
+            bool dalbyMetFileExists = File.Exists(newDalbyMetFilePath);
+            Assert.True(dalbyMetFileExists);
+
+            Utilities.RunModels($"--apply {newConfigFilePath}");
+
+            string text = File.ReadAllText(newApsimxFilePath);
+
+            // Reload simulation from file text. Needed to see changes made.
+            Simulations sim = FileFormat.ReadFromString<Simulations>(text, e => throw e, false).NewModel as Simulations;
+            Summary summaryNode = sim.FindInScope<Summary>();
+            var summaryFileText = summaryNode.GetMessages(sim.Name);
+            // Ensure that the sim was created.
+            Assert.IsNotNull(summaryFileText);
+        }
+
+        [Test]
+        public void TestDeleteSimulationsCommandThrowsException()
+        {
+            Simulations file = Utilities.GetRunnableSim();
+
+            Simulation simulationNode = file.FindInScope<Simulation>();
+
+            string apsimxFileName = file.FileName.Split('\\', '/').ToList().Last();
+
+            string newFileString = $"load {apsimxFileName}\ndelete [Simulations]";
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "config10.txt");
+            File.WriteAllText(newTempConfigFile, newFileString);
+
+            bool fileExists = File.Exists(newTempConfigFile);
+            Assert.True(File.Exists(newTempConfigFile));
+
+            Exception ex = Assert.Throws<Exception>(delegate { Utilities.RunModels($"--apply {newTempConfigFile}"); });
+            Assert.IsTrue(ex.Message.Contains("System.InvalidOperationException: Command 'delete [Simulations]' is an invalid command. [Simulations] node is the top-level node and cannot be deleted. Remove the command from your config file."));
+
+        }
+
+        [Test]
+        public void TestApplySwitchUsingCopyCommand()
+        {
+            Simulations file = Utilities.GetRunnableSim();
+
+
+            Simulation simulationNode = file.FindInScope<Simulation>();
+
+            string apsimxFileName = file.FileName.Split('\\', '/').ToList().Last();
+            string newApsimxFilePath = Path.Combine(Path.GetTempPath(), apsimxFileName);
+
+            string newFileString = @$"load {apsimxFileName}
+add [Simulations] Experiment
+copy [Simulation] [Experiment]
+save {apsimxFileName}";
+
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "config11.txt");
+            File.WriteAllText(newTempConfigFile, newFileString);
+
+            bool fileExists = File.Exists(newTempConfigFile);
+            Assert.True(File.Exists(newTempConfigFile));
+
+            Utilities.RunModels($"--apply {newTempConfigFile}");
+
+            string text = File.ReadAllText(newApsimxFilePath);
+
+            Simulations simAfterSave = FileFormat.ReadFromString<Simulations>(text, e => throw e, false).NewModel as Simulations;
+            Experiment experimentNode = simAfterSave.FindInScope<Experiment>();
+            Assert.NotNull(experimentNode);
+            Simulation simulation = experimentNode.FindInScope<Simulation>();
+            Assert.NotNull(simulation);
+        }
+
+        [Test]
+        public void TestInvalidCopyCommandThrowsException()
+        {
+            Simulations file = Utilities.GetRunnableSim();
+
+            Simulation simulationNode = file.FindInScope<Simulation>();
+
+            string apsimxFileName = file.FileName.Split('\\', '/').ToList().Last();
+
+            string newFileString = @$"load {apsimxFileName}
+copy [Simulation] [Experiment]
+save {apsimxFileName}";
+
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "config12.txt");
+            File.WriteAllText(newTempConfigFile, newFileString);
+
+            bool fileExists = File.Exists(newTempConfigFile);
+            Assert.True(File.Exists(newTempConfigFile));
+
+            Exception ex = Assert.Throws<Exception>(delegate { Utilities.RunModels($"--apply {newTempConfigFile}"); });
+        }
+
+        [Test]
+        [Order(3)]
+        public void TestSubsequentCommandDoesNotOverwriteTempSim()
+        {
+            Simulations file = Utilities.GetRunnableSim();
+
+            string apsimxFileName = file.FileName.Split('\\', '/').ToList().Last();
+
+            string newFileString = @$"load {apsimxFileName}
+add [Simulations] Simulation
+add [Simulations] Simulation
+save {apsimxFileName}
+";
+
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "config13.txt");
+            File.WriteAllText(newTempConfigFile, newFileString);
+
+            Utilities.RunModels($"--apply {newTempConfigFile}");
+            string newApsimxFilePath = Path.Combine(Path.GetTempPath(), apsimxFileName);
+
+            string text = File.ReadAllText(newApsimxFilePath);
+
+            Simulations simAfterCommands = FileFormat.ReadFromString<Simulations>(text, e => throw e, false).NewModel as Simulations;
+            Simulation thirdSim = simAfterCommands.FindInScope<Simulation>("Simulation2");
+            Assert.NotNull(thirdSim);
+
+        }
+
+        [Test]
+        [Order(4)]
+        public void TestFactorOverrideIsApplied()
+        {
+            Simulations file = Utilities.GetRunnableSim();
+
+            string apsimxFileName = file.FileName.Split('\\', '/').ToList().Last();
+
+            string newFileString = @$"load {apsimxFileName}
+add [Simulations] Experiment
+add [Experiment] Factors
+add [Factors] Factor
+[Factor].Specification = [Fertilise at sowing].Script.Amount = 0 to 200 step 20
+save {apsimxFileName}
+";
+
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "config14.txt");
+            File.WriteAllText(newTempConfigFile, newFileString);
+
+            Utilities.RunModels($"--apply {newTempConfigFile}");
+            string newApsimxFilePath = Path.Combine(Path.GetTempPath(), apsimxFileName);
+
+            string text = File.ReadAllText(newApsimxFilePath);
+
+            Simulations simAfterCommands = FileFormat.ReadFromString<Simulations>(text, e => throw e, false).NewModel as Simulations;
+            Factor modifiedFactor = simAfterCommands.FindInScope<Factor>();
+            Assert.Contains(modifiedFactor.Specification, new List<string>() { "[Fertilise at sowing].Script.Amount = 0 to 200 step 20" });
+        }
+
+        [Test]
+        public void TestListReferencedFileNamesUnmodified()
+        {
+            Simulations file = Utilities.GetRunnableSim();
+
+            // Add an excel file so that a file path is given when calling command.
+            Simulation sim = file.FindAllChildren<Simulation>().First();
+
+            string[] fileNames = { "example.xlsx" };
+
+            ExcelInput excelInputNode = new ExcelInput()
+            {
+                FileNames = fileNames
+            };
+
+            sim.Children.Add(excelInputNode);
+
+            string apsimxFileName = file.FileName.Split('\\', '/').ToList().Last();
+
+            string outputText = Utilities.RunModels(file, "--list-referenced-filenames-unmodified");
+
+            Assert.True(outputText.Contains("example.xlsx"));
+
+        }
+
+        /// <summary>
+        /// Test to make sure playlist switch works.
+        /// </summary>
+        [Test]
+        public void TestPlaylistSwitch()
+        {
+            Simulations sims = Utilities.GetRunnableSim();
+            string firstSimName = (sims.FindChild<Simulation>()).Name;
+            Playlist newplaylist = new Playlist()
+            {
+                Name = "playlist",
+                Text = firstSimName
+            };
+            sims.Children.Add(newplaylist);
+            sims.Write(sims.FileName);
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "configCopyCommand.txt");
+            string apsimxFileName = sims.FileName.Split('\\', '/').ToList().Last();
+            string newFileString = @$"load {apsimxFileName}
+        duplicate [Simulation] Simulation1
+        save {apsimxFileName}
+        run";
+
+            File.WriteAllText(newTempConfigFile, newFileString);
+            Utilities.RunModels($"--apply {newTempConfigFile} -p playlist");
+
+            Simulations simsAfterRun = FileFormat.ReadFromFile<Simulations>(sims.FileName, e => throw e, false).NewModel as Simulations;
+            DataStore datastore = simsAfterRun.FindChild<DataStore>();
+            List<String> dataStoreNames = datastore.Reader.SimulationNames;
+            Assert.IsTrue(dataStoreNames.Count == 1);
+            Assert.AreEqual(dataStoreNames.First(), firstSimName);
+        }
+
+        /// <summary>
+        /// Tests that an exception is thrown when a playlist is specified that does not exist.
+        /// </summary>
+        [Test]
+        public void TestPlaylistSwitchFailsGracefully()
+        {
+            Simulations sims = Utilities.GetRunnableSim();
+            Assert.Throws<Exception>(() => Utilities.RunModels($"{sims.FileName} --playlist playlistNameThatDoesntExist --verbose"));
+        }
+
+        /// <summary>
+        /// Tests to make sure Playlist continues to run if there is a difference in case in the specified Playlist name.
+        /// </summary>
+        [Test]
+        public void TestPlaylistCaseInsensitivity()
+        {
+            Simulations sims = Utilities.GetRunnableSim();
+            string firstSimName = (sims.FindChild<Simulation>()).Name;
+            Playlist newplaylist = new Playlist()
+            {
+                Name = "playlist",
+                Text = firstSimName
+            };
+            sims.Children.Add(newplaylist);
+            sims.Write(sims.FileName);
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "configCopyCommand.txt");
+            string apsimxFileName = sims.FileName.Split('\\', '/').ToList().Last();
+            string newFileString = @$"load {apsimxFileName}
+        duplicate [Simulation] Simulation1
+        save {apsimxFileName}
+        run";
+
+            File.WriteAllText(newTempConfigFile, newFileString);
+            Utilities.RunModels($"--apply {newTempConfigFile} -p Playlist");
+
+            Simulations simsAfterRun = FileFormat.ReadFromFile<Simulations>(sims.FileName, e => throw e, false).NewModel as Simulations;
+            DataStore datastore = simsAfterRun.FindChild<DataStore>();
+            List<String> dataStoreNames = datastore.Reader.SimulationNames;
+            Assert.IsTrue(dataStoreNames.Count == 1);
+            Assert.AreEqual(dataStoreNames.First(), firstSimName);
+        }
+
+
+        [Test]
+        public void TestPlaylistDoesNotRunWhenDisabled()
+        {
+            Simulations sims = Utilities.GetRunnableSim();
+            string firstSimName = (sims.FindChild<Simulation>()).Name;
+            Playlist newplaylist = new Playlist()
+            {
+                Name = "playlist",
+                Text = firstSimName,
+                Enabled = false
+            };
+            sims.Children.Add(newplaylist);
+            sims.Write(sims.FileName);
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "configCopyCommand.txt");
+            string apsimxFileName = sims.FileName.Split('\\', '/').ToList().Last();
+            string newFileString = @$"load {apsimxFileName}
+        duplicate [Simulation] Simulation1
+        save {apsimxFileName}
+        run";
+
+            File.WriteAllText(newTempConfigFile, newFileString);
+            Assert.Throws<Exception>(() => Utilities.RunModels($"--apply {newTempConfigFile} -p playlist"));
+
+        }
+
+        [Test]
+        public void TestApplySwitch_ConfigFileWithTwoRunStatements_RunsAppropriateFiles()
+        {
+            Simulations sims = Utilities.GetRunnableSim();
+            string firstSimName = (sims.FindChild<Simulation>()).Name;
+
+            string newTempConfigFile = Path.Combine(Path.GetTempPath(), "configCopyCommand.txt");
+            string firstApsimxFileName = sims.FileName.Split('\\', '/').ToList().Last();
+            string firstApsimxFileNameWithoutExtension = firstApsimxFileName.Split('.')[0];
+            string newFileString =
+@$"load {firstApsimxFileName}
+copy [Simulation] [Simulations]
+save {firstApsimxFileNameWithoutExtension + "1" + ".apsimx"}
+run
+load {firstApsimxFileName}
+copy [Simulation] [Simulations]
+save {firstApsimxFileNameWithoutExtension + "2" + ".apsimx"}
+run";
+            File.WriteAllText(newTempConfigFile, newFileString);
+            Utilities.RunModels($"--apply {newTempConfigFile}");
+            // Check that original file is unmodified.
+            Simulations originalSims = FileFormat.ReadFromFile<Simulations>(sims.FileName, e => throw e, false).NewModel as Simulations;
+            List<Simulation> simulations = originalSims.FindAllChildren<Simulation>().ToList();
+            Assert.IsTrue(simulations.Count() == 1);
+            // Check that 'Simulation1' has a duplicate simulation called 'Simulation1'.
+            Simulations firstModdedSims = FileFormat.ReadFromFile<Simulations>(Path.GetTempPath() + firstApsimxFileNameWithoutExtension + "1" + ".apsimx", e => throw e, false).NewModel as Simulations;
+            // Check that 'Simulation2' has a duplicate simulation called 'Simulation2'.
+            Simulations secondModdedSims = FileFormat.ReadFromFile<Simulations>(Path.GetTempPath() + firstApsimxFileNameWithoutExtension + "2" + ".apsimx", e => throw e, false).NewModel as Simulations;
+
+
         }
     }
 }

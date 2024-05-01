@@ -167,6 +167,42 @@ namespace Models.Core
             SetFileNameInAllSimulations();
         }
 
+        /// <summary>Write the specified simulation set to the specified directory path.</summary>
+        /// <param name="currentFileName">FileName property of the simulation set.</param>
+        /// <param name="savePath">The location where the simulation should be saved.</param>
+        public void Write(string currentFileName, string savePath) // TODO: needs testing in conjunction with Main.cs --apply switch.
+        {
+            try
+            {
+                string tempFileName = Path.GetTempFileName();
+                File.WriteAllText(tempFileName, FileFormat.WriteToString(this));
+
+                // If we get this far without an exception then copy the tempfilename over our filename,
+                // creating a backup (.bak) in the process.
+                string bakFileName = currentFileName + ".bak";
+                File.Delete(bakFileName);
+                if (File.Exists(currentFileName))
+                    File.Move(currentFileName, bakFileName);
+                File.Move(tempFileName, currentFileName);
+                File.Move(currentFileName, savePath, true);
+                this.FileName = savePath;
+                SetFileNameInAllSimulations();
+            }
+            catch (Exception e)
+            {
+                throw new Exception($"An error occured trying to save a simulation to {savePath}. {e}");
+            }
+
+        }
+
+        /// <summary>
+        /// Resets the FileName property of each Simulation model in the APSIMX file.
+        /// </summary>
+        public void ResetSimulationFileNames()
+        {
+            SetFileNameInAllSimulations();
+        }
+
         /// <summary>Look through all models. For each simulation found set the filename.</summary>
         private void SetFileNameInAllSimulations()
         {
@@ -229,13 +265,19 @@ namespace Models.Core
         }
 
         /// <summary>Find all referenced files from all models.</summary>
-        public IEnumerable<string> FindAllReferencedFiles()
+        public IEnumerable<string> FindAllReferencedFiles(bool isAbsolute = true)
         {
             SortedSet<string> fileNames = new SortedSet<string>();
             foreach (IReferenceExternalFiles model in this.FindAllDescendants<IReferenceExternalFiles>().Where(m => m.Enabled))
                 foreach (string fileName in model.GetReferencedFileNames())
-                    fileNames.Add(PathUtilities.GetAbsolutePath(fileName, FileName));
-
+                    if (isAbsolute == true)
+                    {
+                        fileNames.Add(PathUtilities.GetAbsolutePath(fileName, FileName));
+                    }
+                    else
+                    {
+                        fileNames.Add(fileName);
+                    }
             return fileNames;
         }
 

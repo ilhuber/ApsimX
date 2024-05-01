@@ -1,6 +1,6 @@
 {
   "$type": "Models.Core.Simulations, Models",
-  "Version": 165,
+  "Version": 167,
   "Name": "Simulations",
   "ResourceName": null,
   "Children": [
@@ -4383,7 +4383,7 @@
                 "{",
                 "    [Serializable]",
                 "    [System.Xml.Serialization.XmlInclude(typeof(Model))]",
-                "    public class Script : Model",
+                "    public class PatchScript : Model",
                 "    {",
                 "        [Link] private Clock clock;",
                 "        [Link] private Soil soil;",
@@ -4914,7 +4914,7 @@
                 "        [Link] private Soil soil;",
                 "        [Link] private Zone[] zones;",
                 "        [Link] private ISummary summary;",
-                "        [Link] private Script patchAndZoneManager;",
+                "        [Link] private PatchScript patchAndZoneManager;",
                 "        [Link] private NutrientPatchManager nutrientPatchManager;",
                 "        ",
                 "",
@@ -5606,22 +5606,6 @@
                   "$type": "Models.Fertiliser, Models",
                   "Name": "Fertiliser",
                   "ResourceName": "Fertiliser",
-                  "Children": [],
-                  "Enabled": true,
-                  "ReadOnly": false
-                },
-                {
-                  "$type": "Models.Surface.SurfaceOrganicMatter, Models",
-                  "SurfOM": [],
-                  "Canopies": [],
-                  "InitialResidueName": "grass",
-                  "InitialResidueType": "grass",
-                  "InitialResidueMass": 500.0,
-                  "InitialStandingFraction": 0.0,
-                  "InitialCPR": 0.0,
-                  "InitialCNR": 15.0,
-                  "Name": "SurfaceOrganicMatter",
-                  "ResourceName": "SurfaceOrganicMatter",
                   "Children": [],
                   "Enabled": true,
                   "ReadOnly": false
@@ -6379,6 +6363,22 @@
                       "ReadOnly": false
                     }
                   ],
+                  "Enabled": true,
+                  "ReadOnly": false
+                },
+                {
+                  "$type": "Models.Surface.SurfaceOrganicMatter, Models",
+                  "SurfOM": [],
+                  "Canopies": [],
+                  "InitialResidueName": "grass",
+                  "InitialResidueType": "grass",
+                  "InitialResidueMass": 0.0,
+                  "InitialStandingFraction": 0.0,
+                  "InitialCPR": 0.0,
+                  "InitialCNR": 15.0,
+                  "Name": "SurfaceOrganicMatter",
+                  "ResourceName": "SurfaceOrganicMatter",
+                  "Children": [],
                   "Enabled": true,
                   "ReadOnly": false
                 },

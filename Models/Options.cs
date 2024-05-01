@@ -55,8 +55,27 @@ namespace Models
         /// <remarks>
         /// This property holds the path to the config file.
         /// </remarks>
-        [Option("edit", HelpText = "Edit the .apsimx file(s) before running them. Path to a config file must be specified which contains lines of parameters to change, in the form 'path = value'.")]
+        [Option("edit", HelpText = "Deprecated. Use --apply switch with config file workflow instead.")]
         public string EditFilePath { get; set; }
+
+        /// <summary>
+        /// Edit the .apsimx file(s) before running them. Path to a config file must be specified which contains lines of parameters to change, in the form 'path = value'.
+        /// </summary>
+        /// <remarks>
+        /// This property holds the path to the config file.
+        /// This is identical to --edit switch. 
+        /// </remarks>
+        [Option("run-use-config", HelpText = "Deprecated. Use --apply switch with config file workflow instead.")]
+        public string RunUseConfig { get; set; }
+
+        /// <summary>
+        ///  Edit the .apsimx files(s) and save without running them. Path to a config file must be specified which contains lines of parameters to change, in the form 'path = value'.
+        /// </summary>
+        /// <remarks>
+        /// This property holds the path to the config file and optionally a path to a .apsimx to save the modified .apsimx file (white-space separated).
+        /// </remarks>
+        [Option("edit-use-config", HelpText = "Deprecated. Use --apply switch with config file workflow instead.")]
+        public string EditUseConfig { get; set; }
 
         /// <summary>
         /// List simulation names without running them.
@@ -65,10 +84,16 @@ namespace Models
         public bool ListSimulationNames { get; set; }
 
         /// <summary>
-        /// List all files that are referenced by an .apsimx file(s)
+        /// List all files that are referenced by an .apsimx file(s) with absolute paths.
         /// </summary>
-        [Option("list-referenced-filenames", HelpText = "List all files that are referenced by an .apsimx file(s).")]
+        [Option("list-referenced-filenames", HelpText = "List all files that are referenced by an .apsimx file(s) as an absolute path.")]
         public bool ListReferencedFileNames { get; set; }
+
+        /// <summary>
+        /// List all files that are referenced by an .apsimx file(s) as they are. 
+        /// </summary>
+        [Option("list-referenced-filenames-unmodified", HelpText = "List all files that are referenced by an .apsimx file(s) as is.")]
+        public bool ListReferencedFileNamesUnmodified { get; set; }
 
         /// <summary>
         /// Run all simulations sequentially on a single thread.
@@ -91,6 +116,21 @@ namespace Models
         /// <value></value>
         [Option("simulation-names", HelpText = "Only run simulations if their names match this regular expression.")]
         public string SimulationNameRegex { get; set; }
+
+        /// <summary>
+        /// Uses a config file to apply instructions. Can be used to create new simulations and modify existing ones.
+        /// </summary>
+        /// <remarks>
+        /// Intended to provide a overall approach to simulation handling.
+        /// </remarks>
+        [Option("apply", HelpText = "Uses a config file to apply instructions. Can be used to create new simulations and modify existing ones.")]
+        public string Apply { get; set; }
+
+        /// <summary>
+        /// Allows a group of simulations to be selectively run. Requires a playlist node to be present in the APSIM file.
+        /// </summary>
+        [Option('p', "playlist", HelpText = "Allows a group of simulations to be selectively run. Requires a playlist node to be present in the APSIM file.")]
+        public string Playlist { get; set; }
 
         /// <summary>
         /// Type of runner used to run the simulations.

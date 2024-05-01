@@ -32,6 +32,10 @@ namespace UnitTests.UtilityTests
             Assert.AreEqual(DateTime.Parse(isoTest1, null, DateTimeStyles.RoundtripKind), DateUtilities.GetDate(isoTest1));
             Assert.AreEqual(DateTime.Parse(isoTest2, null, DateTimeStyles.RoundtripKind), DateUtilities.GetDate(isoTest2));
 
+            //check dates are trimmed
+            string trimTest = $" 2000-01-01 ";
+            Assert.AreEqual(DateTime.Parse(trimTest, null, DateTimeStyles.RoundtripKind), DateUtilities.GetDate(trimTest));
+
             foreach (char seperator in DateUtilities.VALID_SEPERATORS)
             {
                 foreach (string year in years)
@@ -199,6 +203,10 @@ namespace UnitTests.UtilityTests
             Assert.AreEqual(ddmm, DateUtilities.ValidateDateString("January 10"));
 
             Assert.Null(DateUtilities.ValidateDateString("FakeMonth 10"));
+
+            //ValidateDateStringWithYear
+            Assert.AreEqual(yyyymmdd, DateUtilities.ValidateDateStringWithYear("10/January/2000"));
+            Assert.Null(DateUtilities.ValidateDateStringWithYear("10 January"));
 
             //GetNextDate
             Assert.AreEqual(DateUtilities.GetDate("2-Jan-2001"), DateUtilities.GetNextDate("2-Jan", date)); //2-Jan is before date

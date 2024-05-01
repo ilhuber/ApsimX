@@ -276,6 +276,8 @@ namespace UserInterface.Classes
                         plant = model.FindInScope<IPlant>();
                     if (plant != null)
                         DropDownOptions = PropertyPresenterHelpers.GetCultivarNames(plant);
+                    else
+                        DropDownOptions = new string[] { };
                     break;
                 case DisplayType.SCRUMcropName:
                     DisplayMethod = PropertyType.DropDown;
@@ -306,6 +308,12 @@ namespace UserInterface.Classes
                     Plant planty = model.FindInScope<Plant>();
                     if (planty != null)
                         DropDownOptions = PropertyPresenterHelpers.GetCropStageNames(planty);
+                    break;
+                case DisplayType.CropPhaseName:
+                    DisplayMethod = PropertyType.DropDown;
+                    Plant plantyy = model.FindInScope<Plant>();
+                    if (plantyy != null)
+                        DropDownOptions = PropertyPresenterHelpers.GetCropPhaseNames(plantyy);
                     break;
                 case DisplayType.LifePhaseName:
                     DisplayMethod = PropertyType.DropDown;

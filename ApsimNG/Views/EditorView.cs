@@ -1,14 +1,15 @@
 ﻿using System;
-using Gtk;
-using Utility;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Collections.Generic;
-using GtkSource;
 using System.Text;
-using UserInterface.Interfaces;
+using Shared.Utilities;
+using Gtk;
+using GtkSource;
 using UserInterface.EventArguments;
 using UserInterface.Intellisense;
+using UserInterface.Interfaces;
+using Utility;
 using FontDescription = Pango.FontDescription;
 
 namespace UserInterface.Views
@@ -69,16 +70,6 @@ namespace UserInterface.Views
         private AccelGroup accel = new AccelGroup();
 
         /// <summary>
-        /// Horizontal scroll position
-        /// </summary>
-        private int horizScrollPos = -1;
-
-        /// <summary>
-        /// Vertical scroll position
-        /// </summary>
-        private int vertScrollPos = -1;
-
-        /// <summary>
         /// Invoked when the editor needs context items (after user presses '.')
         /// </summary>
         public event EventHandler<NeedContextItemsArgs> ContextItemsNeeded;
@@ -97,6 +88,11 @@ namespace UserInterface.Views
         /// Invoked when the user changes the style.
         /// </summary>
         public event EventHandler StyleChanged;
+
+        /// <summary>
+        /// Invoked when the user drops a variable on the EditorView.
+        /// </summary>
+        public event EventHandler VariableDragDataReceived;
 
         /// <summary>
         /// Gets or sets the text property to get and set the content of the editor.
@@ -184,7 +180,7 @@ namespace UserInterface.Views
         /// Gets or sets the characters that bring up the intellisense context menu.
         /// </summary>
         public string IntelliSenseChars { get; set; }
-        
+
         /// <summary>
         /// Gets the current line number
         /// </summary>
@@ -227,31 +223,41 @@ namespace UserInterface.Views
 
         /// <summary>
         /// Gets or sets the current location of the caret (column and line) and the current scrolling position
-        /// This isn't really a Rectangle, but the Rectangle class gives us a convenient
-        /// way to store these values.
-        /// 
-        /// X is column, Y is line number, width is horizontal scroll position, height is vertical scroll position.
         /// </summary>
-        public System.Drawing.Rectangle Location
+        public ManagerCursorLocation Location
         {
             get
             {
-                int scrollX = Convert.ToInt32(scroller.Hadjustment.Value, CultureInfo.InvariantCulture);
-                int scrollY = Convert.ToInt32(scroller.Vadjustment.Value, CultureInfo.InvariantCulture);
-
-                // x is column, y is line number.
-                return new System.Drawing.Rectangle(CurrentColumnNumber, CurrentLineNumber, scrollX, scrollY);
+                ManagerCursorLocation location = new ManagerCursorLocation();
+                location.TabIndex = 0;
+                location.Column = CurrentColumnNumber;
+                location.Line = CurrentLineNumber - 1;
+                location.ScrollH = new ScrollerAdjustmentValues(scroller.Hadjustment.Value,
+                                                                scroller.Hadjustment.Lower,
+                                                                scroller.Hadjustment.Upper,
+                                                                scroller.Hadjustment.StepIncrement,
+                                                                scroller.Hadjustment.PageIncrement,
+                                                                scroller.Hadjustment.PageSize);
+                location.ScrollV = new ScrollerAdjustmentValues(scroller.Vadjustment.Value,
+                                                                scroller.Vadjustment.Lower, 
+                                                                scroller.Vadjustment.Upper,
+                                                                scroller.Vadjustment.StepIncrement,
+                                                                scroller.Vadjustment.PageIncrement,
+                                                                scroller.Vadjustment.PageSize);
+                return location;
             }
 
             set
             {
-                // tbi
-                //textEditor.Caret.Location = new DocumentLocation(value.Y, value.X);
-                horizScrollPos = value.Width;
-                vertScrollPos = value.Height;
+                textEditor.GrabFocus();
+
+                if (value.ScrollH.Valid)
+                    scroller.Hadjustment.Configure(value.ScrollH.Value, value.ScrollH.Lower, value.ScrollH.Upper, value.ScrollH.StepIncrement, value.ScrollH.PageIncrement, value.ScrollH.PageSize);
+                if (value.ScrollV.Valid)
+                    scroller.Vadjustment.Configure(value.ScrollV.Value, value.ScrollV.Lower, value.ScrollV.Upper, value.ScrollV.StepIncrement, value.ScrollV.PageIncrement, value.ScrollV.PageSize);
 
                 // x is column, y is line number.
-                TextIter iter = textEditor.Buffer.GetIterAtLineOffset(value.Y, value.X);
+                TextIter iter = textEditor.Buffer.GetIterAtLineOffset(value.Line, value.Column);
                 textEditor.Buffer.PlaceCursor(iter);
             }
         }
@@ -312,11 +318,25 @@ namespace UserInterface.Views
         public EditorView(ViewBase owner) : base(owner)
         {
             scroller = new ScrolledWindow();
+            
             textEditor = new SourceView();
+            textEditor.DragDataReceived += TextEditorDragDataReceived;
             searchSettings = new SearchSettings();
             searchContext = new SearchContext(textEditor.Buffer, searchSettings);
+
             scroller.Add(textEditor);
+
             InitialiseWidget();
+        }
+
+        /// <summary>
+        /// Handler for when a 'drop' is done over an EditorView.
+        /// </summary>
+        /// <param name="o"></param>
+        /// <param name="args"></param>
+        private void TextEditorDragDataReceived(object o, DragDataReceivedArgs args)
+        {
+            VariableDragDataReceived.Invoke(o, args);
         }
 
         protected override void Initialise(ViewBase ownerView, GLib.Object gtkControl)
@@ -636,6 +656,12 @@ namespace UserInterface.Views
         public void ShowCompletionItems(List<NeedContextItemsArgs.ContextItem> completionOptions)
         {
 
+        }
+
+        // Get reference to EditorView's GTK SourceView widget.
+        public SourceView GetSourceView()
+        {
+            return textEditor;
         }
 
         /// <summary>
