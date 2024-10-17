@@ -1,13 +1,14 @@
-﻿using UserInterface.EventArguments;
-using Models.Core;
-using Models.Factorial;
-using Models.Storage;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using UserInterface.Views;
 using APSIM.Shared.Documentation.Extensions;
+using Models.Core;
+using Models.Factorial;
+using Models.Storage;
+using UserInterface.EventArguments;
+using UserInterface.Views;
+using Gtk.Sheet;
 
 namespace UserInterface.Presenters
 {
@@ -154,7 +155,9 @@ namespace UserInterface.Presenters
         {
             //base.Detach();
             // Keep the column and row filters
-            explorerPresenter.KeepFilter(temporaryColumnFilters, temporaryRowFilters); 
+            temporaryColumnFilters = columnFilterEditBox.Text;
+            temporaryRowFilters = rowFilterEditBox.Text;
+            explorerPresenter.KeepFilter(temporaryColumnFilters, temporaryRowFilters);
             temporaryRowFilters = rowFilterEditBox.Text;
             tableDropDown.Changed -= OnTableSelected;
             columnFilterEditBox.Leave -= OnColumnFilterChanged;
@@ -207,9 +210,9 @@ namespace UserInterface.Presenters
                         dataProvider.PagingStart += (sender, args) => explorerPresenter.MainPresenter.ShowWaitCursor(true);
                         dataProvider.PagingEnd += (sender, args) => explorerPresenter.MainPresenter.ShowWaitCursor(false);
 
-                        gridPresenter.PopulateWithDataProvider(dataProvider, dataProvider.NumPriorityColumns, dataProvider.NumHeadingRows);
+                        gridPresenter.PopulateWithDataProvider(dataProvider);
 
-                        statusLabel.Text = $"Number of rows: {dataProvider.RowCount - dataProvider.NumHeadingRows}";
+                        statusLabel.Text = $"Number of rows: {dataProvider.RowCount}";
                     }
                     catch (Exception err)
                     {
@@ -252,7 +255,7 @@ namespace UserInterface.Presenters
             columns.Add("");
             if (dataStore != null)
             {
-                foreach (Tuple<string, Type> column in dataStore.Reader.GetColumns(tableDropDown.SelectedValue)) 
+                foreach (Tuple<string, Type> column in dataStore.Reader.GetColumns(tableDropDown.SelectedValue))
                     columns.Add(column.Item1);
             }
             orderByDropDown.Values = columns.ToArray();
