@@ -8,7 +8,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using APSIM.Interop.Documentation;
+using APSIM.Documentation;
 using APSIM.Server.Sensibility;
 using APSIM.Shared.Utilities;
 using Gtk;
@@ -983,37 +983,30 @@ namespace UserInterface.Presenters
                 explorerPresenter.MainPresenter.ShowWaitCursor(true);
 
                 IModel currentN = explorerPresenter.CurrentNode;
-                IModel modelToDocument;
+                IModel modelToDocument = currentN;
+                explorerPresenter.ApsimXFile.Links.Resolve(modelToDocument, true, true, false);
 
-                if (currentN is Models.Graph || currentN is Simulation)
-                    modelToDocument = currentN;
-                else
+                string modelTypeName = String.Empty;
+                if (modelToDocument is Models.PMF.Plant)
+                    modelTypeName = modelToDocument.Name;
+                else if (modelToDocument is Simulations)
                 {
-                    modelToDocument = currentN.Clone();
-                    explorerPresenter.ApsimXFile.Links.Resolve(modelToDocument, true, true, false);
+                    var simpleFileName = Path.GetFileNameWithoutExtension((modelToDocument as Simulations).FileName);
+                    modelTypeName = simpleFileName;
                 }
+                else modelTypeName = modelToDocument.GetType().Name;
 
-                PdfWriter pdf = new PdfWriter();
-                string fileNameWritten = Path.ChangeExtension(explorerPresenter.ApsimXFile.FileName, ".pdf");
+                string fullDocFileName = Directory.GetParent(explorerPresenter.ApsimXFile.FileName).ToString()
+                    + $"{Path.DirectorySeparatorChar}{modelTypeName}.html";
 
-                //if filename is null, prompt user to save the file
-                if (fileNameWritten == null)
-                {
-                    explorerPresenter.Save();
-                    fileNameWritten = Path.ChangeExtension(explorerPresenter.ApsimXFile.FileName, ".pdf");
-                }
-                //check if filename is still null (user didn't save) and throw a useful exception
-                if (fileNameWritten == null)
-                {
-                    throw new Exception("You must save this file before documentation can be created");
-                }
+                string html = WebDocs.Generate(modelToDocument);
 
-                pdf.Write(fileNameWritten, modelToDocument.Document());
+                File.WriteAllText(fullDocFileName, html);
 
-                explorerPresenter.MainPresenter.ShowMessage($"Written {fileNameWritten}", Simulation.MessageType.Information);
+                explorerPresenter.MainPresenter.ShowMessage($"Written {fullDocFileName}", Simulation.MessageType.Information);
 
                 // Open the document.
-                ProcessUtilities.ProcessStart(fileNameWritten);
+                ProcessUtilities.ProcessStart(fullDocFileName);
             }
             catch (Exception err)
             {
