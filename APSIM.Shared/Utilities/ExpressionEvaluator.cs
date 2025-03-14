@@ -230,7 +230,7 @@ namespace APSIM.Shared.Utilities
             _variableIndexMap.Clear();
 
             //-- Remove all white spaces from the equation string --
-            var matches = s_parseRegex.Matches(equation.Replace(" ", ""));
+            var matches = s_parseRegex.Matches(equation.Replace(" ", "").Replace("\t", ""));
             foreach (Match m in matches)
             {
                 ctSymbol.m_name = m.Value;
