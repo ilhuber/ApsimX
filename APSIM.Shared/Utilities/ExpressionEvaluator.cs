@@ -504,13 +504,13 @@ namespace APSIM.Shared.Utilities
                     EvaluateOperator(Math.Pow);
                     break;
                 case "/":
-                    if (sym2.m_values is null && MathUtilities.FloatsAreEqual(sym2.m_value, 0, 1E-12))
+                    if (sym1.m_values == null && sym2.m_values == null && MathUtilities.FloatsAreEqual(sym2.m_value, 0, 1E-12))
                     {
                         result.m_name = "Divide by Zero.";
                         result.m_type = ExpressionType.Error;
                     }
                     else
-                        EvaluateOperator((l, r) => l / r);
+                        EvaluateOperator((l, r) => MathUtilities.Divide(l, r, 0));
                     break;
                 case "*":
                     EvaluateOperator((l, r) => l * r);
