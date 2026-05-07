@@ -191,7 +191,7 @@ namespace APSIMNG.Utility
         [FontInput("Font used in manager script editor")]
         public string EditorFontName { get; set; } = "monospace 10";
 
-        [ColourSchemeInput("Colour Scheme for plots")]
+        [ColourSchemeInput("Colour Scheme for plots", OnChanged = nameof(OnPlotColourSchemeChanged))]
         public string PlotColourScheme { get; set; } = "Default";
 
         /// <summary>
@@ -416,6 +416,16 @@ namespace APSIMNG.Utility
             EditorStyleName = DarkTheme ? "Adwaita-dark" : "Adwaita";
             ThemeRestartRequired = !ThemeRestartRequired;
 
+        }
+
+        /// <summary>
+        /// Awful hack to get around colorization happening inside of Models for some reason.
+        /// FIXME FIXME FIXME
+        /// </summary>
+        private void OnPlotColourSchemeChanged()
+        {
+            var cs = ApsimNG.Graphing.ColourSchemes.GetColourScheme(PlotColourScheme);
+            ColourUtilities.Colours = [.. cs.Colours];
         }
     }
 }
