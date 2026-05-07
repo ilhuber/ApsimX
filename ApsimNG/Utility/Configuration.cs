@@ -191,6 +191,9 @@ namespace APSIMNG.Utility
         [FontInput("Font used in manager script editor")]
         public string EditorFontName { get; set; } = "monospace 10";
 
+        [ColourSchemeInput("Colour Scheme for plots")]
+        public string PlotColourScheme { get; set; } = "Default";
+
         /// <summary>
         /// Country name used in the download soil view.
         /// </summary>

@@ -10,6 +10,7 @@ using System.Collections;
 using Models.Core;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using ApsimNG.Graphing;
 
 namespace UserInterface.Views
 {
@@ -90,9 +91,15 @@ namespace UserInterface.Views
             InputAttribute attrib = property.GetCustomAttribute<InputAttribute>();
             if (attrib == null)
                 throw new ArgumentException($"Property {property.Name} does not have an Input attribute");
+            IEnumerable<string> dropDownOptions = null;
             PropertyType displayType;
             if (attrib is FontInput)
                 displayType = PropertyType.Font;
+            else if (attrib is ColourSchemeInput)
+            {
+                displayType = PropertyType.DropDown;
+                dropDownOptions = ColourSchemes.Options;
+            }
             else if (attrib is FileInput)
             {
                 if (typeof(IEnumerable).IsAssignableFrom(property.PropertyType))
@@ -115,7 +122,7 @@ namespace UserInterface.Views
                 throw new NotImplementedException($"Unknown input attribute type {attrib.GetType().Name}");
             string tooltip = property.GetCustomAttribute<TooltipAttribute>()?.Tooltip;
             object value = property.GetValue(instance);
-            Property p = new Property(attrib.Name, tooltip, value, displayType);
+            Property p = new(attrib.Name, tooltip, value, displayType, dropDownOptions);
             properties[p.ID] = property;
             return p;
         }
