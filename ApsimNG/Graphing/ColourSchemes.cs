@@ -20,7 +20,9 @@ static class ColourSchemes
         ["Brewer Dark2"] = new(["#1b9e77","#d95f02","#7570b3","#e7298a",
                                 "#66a61e","#e6ab02","#a6761d","#666666"]),
         ["ggplot2"] = new(["#F8766D", "#CD9600", "#7CAE00", "#00BE67",
-                           "#00BFC4", "#00A9FF", "#C77CFF", "#FF61CC"])
+                           "#00BFC4", "#00A9FF", "#C77CFF", "#FF61CC"]),
+        ["Excel"] = new(["#4472C4", "#ED7D31", "#A5A5A5", "#FFC000",
+                         "#5B9BD5", "#70AD47", "#255E91", "#9E480E"])
     };
 
     public static IEnumerable<string> Options => _colorSchemes.Keys;
